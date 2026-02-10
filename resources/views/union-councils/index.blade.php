@@ -35,16 +35,25 @@
                                         <i class="ti-filter"></i> Filters
                                     </h6>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">District</label>
+                                            <select id="filterDistrict" class="form-control form-control-sm">
+                                                <option value="">All Districts</option>
+                                                @foreach($districts as $district)
+                                                    <option value="{{ $district->name }}">{{ $district->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Tehsil</label>
                                             <select id="filterTehsil" class="form-control form-control-sm">
                                                 <option value="">All Tehsils</option>
                                                 @foreach($tehsils as $tehsil)
-                                                    <option value="{{ $tehsil->name }}">{{ $tehsil->name }} ({{ $tehsil->district->name ?? '' }})</option>
+                                                    <option value="{{ $tehsil->name }}" data-district-id="{{ $tehsil->district_id }}">{{ $tehsil->name }} ({{ $tehsil->district->name ?? '' }})</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Status</label>
                                             <select id="filterStatus" class="form-control form-control-sm">
                                                 <option value="">All Status</option>
@@ -52,7 +61,7 @@
                                                 <option value="inactive">Inactive</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Search</label>
                                             <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="Search by name...">
                                         </div>
@@ -86,7 +95,7 @@
                                 <tr>
                                     <td>{{ $unionCouncil->name }}</td>
                                     <td data-tehsil="{{ $unionCouncil->tehsil->name ?? '' }}">{{ $unionCouncil->tehsil->name ?? 'N/A' }}</td>
-                                    <td>{{ $unionCouncil->tehsil->district->name ?? 'N/A' }}</td>
+                                    <td data-district="{{ $unionCouncil->tehsil->district->name ?? '' }}">{{ $unionCouncil->tehsil->district->name ?? 'N/A' }}</td>
                                     <td>{{ $unionCouncil->villages->count() ?? 0 }}</td>
                                     <td data-status="{{ $unionCouncil->is_active ? 'active' : 'inactive' }}">
                                         @if($unionCouncil->is_active)
@@ -256,6 +265,15 @@
             return rowStatus === statusValue;
         };
 
+        var districtFilter = function(settings, data, dataIndex) {
+            var districtValue = $('#filterDistrict').val();
+            if (districtValue === '') return true;
+            var row = table.row(dataIndex).node();
+            var rowDistrict = $(row).find('td:eq(2)').attr('data-district');
+            if (!rowDistrict) return true;
+            return rowDistrict === districtValue;
+        };
+
         var tehsilFilter = function(settings, data, dataIndex) {
             var tehsilValue = $('#filterTehsil').val();
             if (tehsilValue === '') return true;
@@ -264,6 +282,33 @@
             if (!rowTehsil) return true;
             return rowTehsil === tehsilValue;
         };
+
+        // Cascading filters
+        $('#filterDistrict').on('change', function() {
+            var districtId = $(this).val();
+            // Filter tehsils
+            $('#filterTehsil option').show();
+            if (districtId) {
+                var selectedDistrict = $(this).find('option:selected').text();
+                $('#filterTehsil option').each(function() {
+                    var tehsilDistrict = $(this).text().match(/\(([^)]+)\)/);
+                    if (tehsilDistrict && tehsilDistrict[1] !== selectedDistrict) {
+                        $(this).hide();
+                    }
+                });
+            }
+            $('#filterTehsil').val('').trigger('change');
+            
+            // Apply filter
+            var index = $.fn.dataTable.ext.search.indexOf(districtFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            if ($(this).val() !== '') {
+                $.fn.dataTable.ext.search.push(districtFilter);
+            }
+            table.draw();
+        });
 
         $('#filterTehsil').on('change', function() {
             var index = $.fn.dataTable.ext.search.indexOf(tehsilFilter);
@@ -296,10 +341,15 @@
             if (statusIndex !== -1) {
                 $.fn.dataTable.ext.search.splice(statusIndex, 1);
             }
+            var districtIndex = $.fn.dataTable.ext.search.indexOf(districtFilter);
+            if (districtIndex !== -1) {
+                $.fn.dataTable.ext.search.splice(districtIndex, 1);
+            }
             var tehsilIndex = $.fn.dataTable.ext.search.indexOf(tehsilFilter);
             if (tehsilIndex !== -1) {
                 $.fn.dataTable.ext.search.splice(tehsilIndex, 1);
             }
+            $('#filterDistrict').val('').trigger('change');
             $('#filterTehsil').val('');
             $('#filterStatus').val('');
             $('#filterSearch').val('');

@@ -15,12 +15,14 @@ class Beneficiary extends Model
         'scheme_id',
         'scheme_category_id',
         'local_zakat_committee_id',
+        'institution_id',
         'cnic',
         'full_name',
         'father_husband_name',
         'mobile_number',
         'date_of_birth',
         'gender',
+        'class',
         'amount',
         'requires_representative',
         'status',
@@ -75,6 +77,11 @@ class Beneficiary extends Model
     public function localZakatCommittee()
     {
         return $this->belongsTo(LocalZakatCommittee::class);
+    }
+
+    public function institution()
+    {
+        return $this->belongsTo(Institution::class);
     }
 
     public function representative()

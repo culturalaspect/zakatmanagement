@@ -22,7 +22,9 @@ class VillageController extends Controller
     {
         $villages = Village::with(['unionCouncil.tehsil.district'])->orderBy('name')->get();
         $unionCouncils = UnionCouncil::where('is_active', true)->with('tehsil.district')->orderBy('name')->get();
-        return view('villages.index', compact('villages', 'unionCouncils'));
+        $districts = \App\Models\District::where('is_active', true)->orderBy('name')->get();
+        $tehsils = \App\Models\Tehsil::where('is_active', true)->with('district')->orderBy('name')->get();
+        return view('villages.index', compact('villages', 'unionCouncils', 'districts', 'tehsils'));
     }
 
     public function create()

@@ -511,7 +511,7 @@
                 <!-- Beneficiaries Section -->
                 <hr class="my-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0">Beneficiaries (<span id="beneficiariesCount">{{ $phase->beneficiaries->count() ?? 0 }}</span>)</h5>
+                    <h5 class="mb-0">Beneficiaries (<span id="beneficiariesCount">{{ $beneficiaries->count() ?? 0 }}</span>)</h5>
                     @if($phase->status == 'open' && $currentBeneficiariesCount < $phase->max_beneficiaries && $currentAmount < $phase->max_amount)
                     <button type="button" class="btn btn-sm btn-success" id="addBeneficiaryBtn">
                         <i class="ti-plus"></i> Add Beneficiary
@@ -519,7 +519,7 @@
                     @endif
                 </div>
                 <div id="beneficiariesTableContainer">
-                    @if($phase->beneficiaries && $phase->beneficiaries->count() > 0)
+                    @if(isset($beneficiaries) && $beneficiaries->count() > 0)
                     <!-- Filters Section -->
                     <div class="row mb-4">
                         <div class="col-12">
@@ -590,19 +590,21 @@
                                     <th>Scheme</th>
                                     <th>Category</th>
                                     <th>Local Zakat Committee</th>
+                                    <th>Institution</th>
                                     <th>Amount</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="beneficiariesTableBody">
-                                @foreach($phase->beneficiaries as $beneficiary)
+                                @foreach($beneficiaries as $beneficiary)
                                 <tr data-beneficiary-id="{{ $beneficiary->id }}">
                                     <td><strong>{{ $beneficiary->cnic ?? 'N/A' }}</strong></td>
                                     <td>{{ $beneficiary->full_name ?? 'N/A' }}</td>
                                     <td>{{ $beneficiary->scheme->name ?? 'N/A' }}</td>
                                     <td>{{ $beneficiary->schemeCategory->name ?? 'N/A' }}</td>
                                     <td>{{ $beneficiary->localZakatCommittee->name ?? 'N/A' }}</td>
+                                    <td>{{ $beneficiary->institution->name ?? 'N/A' }}</td>
                                     <td>Rs. {{ number_format($beneficiary->amount ?? 0, 2) }}</td>
                                     <td>
                                         @if($beneficiary->status == 'approved')
@@ -682,6 +684,9 @@
         const phaseDistrictId = {{ $phase->district_id ?? 0 }};
         const schemes = @json($schemes ?? []);
         const committees = @json($committees ?? []).filter(c => c.district?.id == phaseDistrictId);
+        const institutions = @json($institutions ?? []).filter(i => i.district?.id == phaseDistrictId);
+        const isInstitutionUser = {{ auth()->user()->isInstitutionUser() ? 'true' : 'false' }};
+        const currentInstitution = @json(auth()->user()->institution ?? null);
         
         // Initialize DataTable for beneficiaries if table exists
         let beneficiariesTable;
@@ -1083,6 +1088,14 @@
         });
 
         function showAddBeneficiaryModal() {
+            // Check if scheme is institutional
+            const isInstitutional = phaseScheme?.is_institutional || false;
+            const institutionalType = phaseScheme?.institutional_type || null;
+            const beneficiaryRequiredFields = phaseScheme?.beneficiary_required_fields || [];
+            const allowsRepresentative = phaseScheme?.allows_representative || false;
+            const hasAgeRestriction = phaseScheme?.has_age_restriction || false;
+            const minimumAge = phaseScheme?.minimum_age || 0;
+            
             // Filter committees to only show those from phase's district
             const filteredCommittees = committees.filter(c => c.district?.id == phaseDistrictId);
 
@@ -1090,6 +1103,26 @@
             filteredCommittees.forEach(function(committee) {
                 const displayText = `${committee.name} [${committee.code ?? 'N/A'}] - ${committee.district?.name ?? 'N/A'}`;
                 committeeOptions += `<div class="custom-select-option" data-value="${committee.id}" data-text="${displayText}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">${displayText}</div>`;
+            });
+            
+            // Filter institutions based on institutional type
+            let filteredInstitutions = [];
+            if (isInstitutional) {
+                if (institutionalType === 'educational') {
+                    filteredInstitutions = institutions.filter(i => 
+                        ['middle_school', 'high_school', 'college', 'university'].includes(i.type)
+                    );
+                } else if (institutionalType === 'madarsa') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'madarsa');
+                } else if (institutionalType === 'health') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'hospital');
+                }
+            }
+            
+            let institutionOptions = '';
+            filteredInstitutions.forEach(function(institution) {
+                const displayText = `${institution.name} [${institution.code ?? 'N/A'}] - ${institution.district?.name ?? 'N/A'}`;
+                institutionOptions += `<div class="custom-select-option" data-value="${institution.id}" data-text="${displayText}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;">${displayText}</div>`;
             });
 
             Swal.fire({
@@ -1117,6 +1150,39 @@
                             </div>
                         </div>
 
+                        ${isInstitutional ? `
+                        <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                            <div class="card-body">
+                                <h6 class="card-title mb-3">Institution</h6>
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        ${isInstitutionUser && currentInstitution ? `
+                                            <label class="form-label">Institution</label>
+                                            <p class="mb-0"><strong>${currentInstitution.name} [${currentInstitution.code ?? 'N/A'}] - ${currentInstitution.district?.name ?? 'N/A'}</strong></p>
+                                            <input type="hidden" name="institution_id" id="add_institution_id" value="${currentInstitution.id}">
+                                        ` : `
+                                            <label class="form-label">Institution <span class="text-danger">*</span></label>
+                                            <div class="custom-searchable-select" style="position: relative;">
+                                                <input type="hidden" name="institution_id" id="add_institution_id" required>
+                                                <div class="custom-select-display" id="institution_select_display" style="border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;">
+                                                    <span class="select-placeholder" style="color: #6c757d;">Select Institution</span>
+                                                    <span class="select-arrow" style="margin-left: auto;">▼</span>
+                                                </div>
+                                                <div class="custom-select-dropdown" id="institution_select_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;">
+                                                    <div class="custom-select-search" style="padding: 8px; border-bottom: 1px solid #dee2e6;">
+                                                        <input type="text" id="institution_search_input" class="form-control form-control-sm" placeholder="Search institution..." autocomplete="off">
+                                                    </div>
+                                                    <div class="custom-select-options" id="institution_select_options" style="max-height: 250px; overflow-y: auto;">
+                                                        ${institutionOptions}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        ` : `
                         <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
                             <div class="card-body">
                                 <h6 class="card-title mb-3">Local Zakat Committee Selection</h6>
@@ -1142,14 +1208,15 @@
                                 </div>
                             </div>
                         </div>
+                        `}
 
                         <hr>
                         <h6>Beneficiary Information</h6>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">CNIC <span class="text-danger">*</span></label>
+                                <label class="form-label">CNIC <span class="text-danger" id="add_cnicRequired" style="display: ${beneficiaryRequiredFields.includes('cnic') ? 'inline' : 'none'};">*</span></label>
                                 <div class="input-group">
-                                    <input type="text" name="cnic" id="add_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" required>
+                                    <input type="text" name="cnic" id="add_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" ${beneficiaryRequiredFields.includes('cnic') ? 'required' : ''}>
                                     <button type="button" class="btn btn-primary" id="fetchBeneficiaryDetailsBtn" title="Fetch details from Wheat Distribution System">
                                         <i class="ti-search"></i> Fetch Details
                                     </button>
@@ -1157,9 +1224,9 @@
                                 <small class="text-muted">Format: XXXXX-XXXXXXX-X</small>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <label class="form-label">Full Name <span class="text-danger" id="add_full_nameRequired" style="display: ${beneficiaryRequiredFields.includes('full_name') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="full_name" id="add_full_name" class="form-control" required>
+                                    <input type="text" name="full_name" id="add_full_name" class="form-control" ${beneficiaryRequiredFields.includes('full_name') ? 'required' : ''}>
                                     <div id="apiFullName" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="add_full_name" title="Copy to form field">
@@ -1169,9 +1236,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Father/Husband Name <span class="text-danger">*</span></label>
+                                <label class="form-label">Father/Husband Name <span class="text-danger" id="add_father_husband_nameRequired" style="display: ${beneficiaryRequiredFields.includes('father_husband_name') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="father_husband_name" id="add_father_husband_name" class="form-control" required>
+                                    <input type="text" name="father_husband_name" id="add_father_husband_name" class="form-control" ${beneficiaryRequiredFields.includes('father_husband_name') ? 'required' : ''}>
                                     <div id="apiFatherHusbandName" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="add_father_husband_name" title="Copy to form field">
@@ -1181,9 +1248,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Mobile Number</label>
+                                <label class="form-label">Mobile Number <span class="text-danger" id="add_mobile_numberRequired" style="display: ${beneficiaryRequiredFields.includes('mobile_number') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="mobile_number" id="add_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12">
+                                    <input type="text" name="mobile_number" id="add_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" ${beneficiaryRequiredFields.includes('mobile_number') ? 'required' : ''}>
                                     <div id="apiMobileNumber" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="add_mobile_number" title="Copy to form field">
@@ -1194,9 +1261,9 @@
                                 <small class="text-muted">Format: 03XX-XXXXXXX</small>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                                <label class="form-label">Date of Birth <span class="text-danger" id="add_date_of_birthRequired" style="display: ${beneficiaryRequiredFields.includes('date_of_birth') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="date" name="date_of_birth" id="add_date_of_birth" class="form-control" required>
+                                    <input type="date" name="date_of_birth" id="add_date_of_birth" class="form-control" ${beneficiaryRequiredFields.includes('date_of_birth') ? 'required' : ''}>
                                     <div id="apiDateOfBirth" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="add_date_of_birth" title="Copy to form field">
@@ -1206,9 +1273,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                <label class="form-label">Gender <span class="text-danger" id="add_genderRequired" style="display: ${beneficiaryRequiredFields.includes('gender') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <select name="gender" id="add_gender" class="form-control" required>
+                                    <select name="gender" id="add_gender" class="form-control" ${beneficiaryRequiredFields.includes('gender') ? 'required' : ''}>
                                         <option value="">Select Gender</option>
                                         <option value="male">Male</option>
                                         <option value="female">Female</option>
@@ -1222,6 +1289,12 @@
                                     </div>
                                 </div>
                             </div>
+                            ${institutionalType === 'educational' ? `
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Class <span class="text-danger">*</span></label>
+                                <input type="text" name="class" id="add_class" class="form-control" placeholder="e.g., 5th, 10th, 1st Year" required>
+                            </div>
+                            ` : ''}
                             <div class="col-md-6 mb-3" id="add_amountDiv">
                                 <label class="form-label">Amount <span class="text-danger" id="add_amountRequired" style="display: none;">*</span></label>
                                 <input type="number" name="amount" id="add_amount" class="form-control" step="0.01" min="0" readonly>
@@ -1358,8 +1431,13 @@
                     confirmButton: 'btn btn-primary'
                 },
                 didOpen: () => {
-                    // Initialize custom searchable select for LZC
-                    initializeCustomSelect();
+                    // Initialize custom searchable select for LZC or Institution based on scheme type
+                    const isInstitutional = phaseScheme?.is_institutional || false;
+                    if (isInstitutional) {
+                        initCustomSelect('#institution_select_display', '#institution_select_dropdown', '#institution_search_input', '#institution_select_options', '#add_institution_id');
+                    } else {
+                        initializeCustomSelect();
+                    }
 
                     // CNIC masking
                     $('#add_cnic').on('input', function() {
@@ -1522,6 +1600,11 @@
                     // Calculate age from date of birth and auto-show/hide representative section
                     function checkAgeAndRequireRepresentative() {
                         const dob = $('#add_date_of_birth').val();
+                        // Get scheme settings
+                        const allowsRepresentative = phaseScheme?.allows_representative || false;
+                        const hasAgeRestriction = phaseScheme?.has_age_restriction || false;
+                        const minimumAge = phaseScheme?.minimum_age || 0;
+                        
                         if (dob) {
                             const birthDate = new Date(dob);
                             const today = new Date();
@@ -1531,17 +1614,49 @@
                                 age--;
                             }
                             
+                            // Check scheme settings
                             if (age < 18) {
-                                // Age is below 18 - show representative section and make fields required
-                                $('#add_representativeDiv').show();
-                                
-                                // Make representative fields required
-                                $('#add_rep_cnic').prop('required', true);
-                                $('#add_rep_full_name').prop('required', true);
-                                $('#add_rep_father_husband_name').prop('required', true);
-                                $('#add_rep_date_of_birth').prop('required', true);
-                                $('#add_rep_gender').prop('required', true);
-                                $('#add_rep_relationship').prop('required', true);
+                                // Check if scheme allows representative
+                                if (!allowsRepresentative) {
+                                    // If scheme has age restriction and doesn't allow representative, < 18 beneficiaries are not eligible
+                                    if (hasAgeRestriction && minimumAge >= 18) {
+                                        Swal.fire({
+                                            icon: 'error',
+                                            title: 'Not Eligible',
+                                            text: 'This scheme has age restriction (minimum age: ' + minimumAge + ') and does not allow representatives. Beneficiaries below 18 years are not eligible for this scheme.',
+                                        });
+                                        $('#add_date_of_birth').val('');
+                                        $('#add_representativeDiv').hide();
+                                        // Remove required from representative fields
+                                        $('#add_rep_cnic').prop('required', false);
+                                        $('#add_rep_full_name').prop('required', false);
+                                        $('#add_rep_father_husband_name').prop('required', false);
+                                        $('#add_rep_date_of_birth').prop('required', false);
+                                        $('#add_rep_gender').prop('required', false);
+                                        $('#add_rep_relationship').prop('required', false);
+                                        return;
+                                    }
+                                    // If no age restriction or minimum age < 18, just hide representative section
+                                    $('#add_representativeDiv').hide();
+                                    // Remove required from representative fields
+                                    $('#add_rep_cnic').prop('required', false);
+                                    $('#add_rep_full_name').prop('required', false);
+                                    $('#add_rep_father_husband_name').prop('required', false);
+                                    $('#add_rep_date_of_birth').prop('required', false);
+                                    $('#add_rep_gender').prop('required', false);
+                                    $('#add_rep_relationship').prop('required', false);
+                                } else {
+                                    // Scheme allows representative - show representative section and make fields required
+                                    $('#add_representativeDiv').show();
+                                    
+                                    // Make representative fields required
+                                    $('#add_rep_cnic').prop('required', true);
+                                    $('#add_rep_full_name').prop('required', true);
+                                    $('#add_rep_father_husband_name').prop('required', true);
+                                    $('#add_rep_date_of_birth').prop('required', true);
+                                    $('#add_rep_gender').prop('required', true);
+                                    $('#add_rep_relationship').prop('required', true);
+                                }
                             } else {
                                 // Age is 18 or above - hide representative section and remove required
                                 $('#add_representativeDiv').hide();
@@ -2005,6 +2120,7 @@
                     
                     // Calculate age first to determine if representative is required
                     const dob = $('#add_date_of_birth').val();
+                    const allowsRepresentative = phaseScheme?.allows_representative || false;
                     let requiresRepresentative = 0;
                     if (dob) {
                         const birthDate = new Date(dob);
@@ -2014,9 +2130,31 @@
                         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
                             age--;
                         }
-                        requiresRepresentative = age < 18 ? 1 : 0;
+                        // Representative required only if age < 18 AND scheme allows representative
+                        requiresRepresentative = (age < 18 && allowsRepresentative) ? 1 : 0;
                     }
                     data.requires_representative = requiresRepresentative;
+                    
+                    // Add institution_id or local_zakat_committee_id based on scheme type
+                    const isInstitutional = phaseScheme?.is_institutional || false;
+                    if (isInstitutional) {
+                        const institutionId = $('#add_institution_id').val();
+                        if (institutionId) {
+                            data.institution_id = institutionId;
+                        }
+                        // Add class for educational schemes
+                        if (phaseScheme?.institutional_type === 'educational') {
+                            const classValue = $('#add_class').val();
+                            if (classValue) {
+                                data.class = classValue;
+                            }
+                        }
+                    } else {
+                        const lzcId = $('#add_local_zakat_committee_id').val();
+                        if (lzcId) {
+                            data.local_zakat_committee_id = lzcId;
+                        }
+                    }
                     
                     // Convert FormData to object
                     // Only include representative data if age < 18
@@ -2034,7 +2172,7 @@
                         }
                     }
                     
-                    // Validate representative fields if age < 18
+                    // Validate representative fields if age < 18 AND scheme allows representative
                     if (requiresRepresentative === 1) {
                         if (!data.representative || !data.representative.cnic || data.representative.cnic === '') {
                             Swal.showValidationMessage('Representative CNIC is required for beneficiaries under 18 years of age.');
@@ -2060,15 +2198,44 @@
                             Swal.showValidationMessage('Representative Relationship is required for beneficiaries under 18 years of age.');
                             return false;
                         }
+                        
+                        // Validate representative age (must be 18+)
+                        if (data.representative.date_of_birth) {
+                            const repBirthDate = new Date(data.representative.date_of_birth);
+                            const today = new Date();
+                            let repAge = today.getFullYear() - repBirthDate.getFullYear();
+                            const monthDiff = today.getMonth() - repBirthDate.getMonth();
+                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < repBirthDate.getDate())) {
+                                repAge--;
+                            }
+                            if (repAge < 18) {
+                                Swal.showValidationMessage('Representative must be 18 years or above. The provided representative is ' + repAge + ' years old.');
+                                return false;
+                            }
+                        }
                     } else {
                         // If age >= 18, ensure no representative data is sent
                         delete data.representative;
                     }
                     
-                    // Validate LZC selection
-                    if (!data.local_zakat_committee_id || data.local_zakat_committee_id === '') {
-                        Swal.showValidationMessage('Please select a Local Zakat Committee.');
-                        return false;
+                    // Validate LZC or Institution selection based on scheme type
+                    if (isInstitutional) {
+                        if (!data.institution_id || data.institution_id === '') {
+                            Swal.showValidationMessage('Please select an Institution.');
+                            return false;
+                        }
+                        // Validate class for educational schemes
+                        if (phaseScheme?.institutional_type === 'educational') {
+                            if (!data.class || data.class === '') {
+                                Swal.showValidationMessage('Please enter the class for educational beneficiaries.');
+                                return false;
+                            }
+                        }
+                    } else {
+                        if (!data.local_zakat_committee_id || data.local_zakat_committee_id === '') {
+                            Swal.showValidationMessage('Please select a Local Zakat Committee.');
+                            return false;
+                        }
                     }
                     
                     // Validate scheme category if scheme has categories
@@ -2537,8 +2704,11 @@
 
             // Date of birth change handler for edit modal
             $('#edit_date_of_birth').on('change', function() {
-                checkAgeAndRequireRepresentativeForEdit();
+                checkAgeAndRequireRepresentativeEdit();
             });
+            
+            // Also check on input (for manual typing)
+            $('#edit_date_of_birth').on('input', checkAgeAndRequireRepresentativeEdit);
 
             // Scheme category change handler for edit modal
             $('#edit_scheme_category_id').on('change', function() {
@@ -2551,8 +2721,15 @@
         }
 
         // Check age and show representative form for edit modal
-        function checkAgeAndRequireRepresentativeForEdit() {
+        function checkAgeAndRequireRepresentativeEdit() {
             const dob = $('#edit_date_of_birth').val();
+            // Get scheme from the schemes array
+            const schemeId = $('#edit_scheme_id').val();
+            const scheme = schemes.find(s => s.id == schemeId);
+            const allowsRepresentative = scheme?.allows_representative || false;
+            const hasAgeRestriction = scheme?.has_age_restriction || false;
+            const minimumAge = scheme?.minimum_age || 0;
+            
             if (dob) {
                 const birthDate = new Date(dob);
                 const today = new Date();
@@ -2562,11 +2739,81 @@
                     age--;
                 }
                 
+                // Check scheme settings
                 if (age < 18) {
-                    $('#edit_representativeDiv').slideDown();
+                    // Check if scheme allows representative
+                    if (!allowsRepresentative) {
+                        // If scheme has age restriction and doesn't allow representative, < 18 beneficiaries are not eligible
+                        if (hasAgeRestriction && minimumAge >= 18) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Not Eligible',
+                                text: 'This scheme has age restriction (minimum age: ' + minimumAge + ') and does not allow representatives. Beneficiaries below 18 years are not eligible for this scheme.',
+                            });
+                            $('#edit_date_of_birth').val(dob);
+                            $('#edit_representativeDiv').hide();
+                            // Remove required from representative fields
+                            $('#edit_rep_cnic').prop('required', false);
+                            $('#edit_rep_full_name').prop('required', false);
+                            $('#edit_rep_father_husband_name').prop('required', false);
+                            $('#edit_rep_date_of_birth').prop('required', false);
+                            $('#edit_rep_gender').prop('required', false);
+                            $('#edit_rep_relationship').prop('required', false);
+                            return;
+                        }
+                        // If no age restriction or minimum age < 18, just hide representative section
+                        $('#edit_representativeDiv').hide();
+                        // Remove required from representative fields
+                        $('#edit_rep_cnic').prop('required', false);
+                        $('#edit_rep_full_name').prop('required', false);
+                        $('#edit_rep_father_husband_name').prop('required', false);
+                        $('#edit_rep_date_of_birth').prop('required', false);
+                        $('#edit_rep_gender').prop('required', false);
+                        $('#edit_rep_relationship').prop('required', false);
+                    } else {
+                        // Scheme allows representative - show representative section and make fields required
+                        $('#edit_representativeDiv').slideDown();
+                        
+                        // Make representative fields required
+                        $('#edit_rep_cnic').prop('required', true);
+                        $('#edit_rep_full_name').prop('required', true);
+                        $('#edit_rep_father_husband_name').prop('required', true);
+                        $('#edit_rep_date_of_birth').prop('required', true);
+                        $('#edit_rep_gender').prop('required', true);
+                        $('#edit_rep_relationship').prop('required', true);
+                    }
                 } else {
+                    // Age is 18 or above - hide representative section and remove required
                     $('#edit_representativeDiv').slideUp();
+                    
+                    // Remove required from representative fields
+                    $('#edit_rep_cnic').prop('required', false);
+                    $('#edit_rep_full_name').prop('required', false);
+                    $('#edit_rep_father_husband_name').prop('required', false);
+                    $('#edit_rep_date_of_birth').prop('required', false);
+                    $('#edit_rep_gender').prop('required', false);
+                    $('#edit_rep_relationship').prop('required', false);
+                    
+                    // Clear representative fields
+                    $('#edit_rep_cnic').val('');
+                    $('#edit_rep_full_name').val('');
+                    $('#edit_rep_father_husband_name').val('');
+                    $('#edit_rep_mobile_number').val('');
+                    $('#edit_rep_date_of_birth').val('');
+                    $('#edit_rep_gender').val('');
+                    $('#edit_rep_relationship').val('');
                 }
+            } else {
+                // No date of birth - hide representative section
+                $('#edit_representativeDiv').hide();
+                
+                // Remove required from representative fields
+                $('#edit_rep_cnic').prop('required', false);
+                $('#edit_rep_full_name').prop('required', false);
+                $('#edit_rep_father_husband_name').prop('required', false);
+                $('#edit_rep_date_of_birth').prop('required', false);
+                $('#edit_rep_gender').prop('required', false);
+                $('#edit_rep_relationship').prop('required', false);
             }
         }
 
@@ -2905,6 +3152,15 @@
         });
 
         function showEditBeneficiaryModal(beneficiary) {
+            // Get scheme information
+            const scheme = schemes.find(s => s.id == beneficiary.scheme_id);
+            const isInstitutional = scheme?.is_institutional || false;
+            const institutionalType = scheme?.institutional_type || null;
+            const beneficiaryRequiredFields = scheme?.beneficiary_required_fields || [];
+            const allowsRepresentative = scheme?.allows_representative || false;
+            const hasAgeRestriction = scheme?.has_age_restriction || false;
+            const minimumAge = scheme?.minimum_age || 0;
+            
             // Filter committees to only show those from phase's district
             const filteredCommittees = committees.filter(c => c.district?.id == phaseDistrictId);
 
@@ -2918,12 +3174,40 @@
             // Get selected committee display text
             const selectedCommittee = filteredCommittees.find(c => c.id == beneficiary.local_zakat_committee_id);
             const selectedCommitteeText = selectedCommittee ? `${selectedCommittee.name} [${selectedCommittee.code ?? 'N/A'}] - ${selectedCommittee.district?.name ?? 'N/A'}` : 'Select Committee';
+            
+            // Filter institutions based on institutional type
+            let filteredInstitutions = [];
+            if (isInstitutional) {
+                if (institutionalType === 'educational') {
+                    filteredInstitutions = institutions.filter(i => 
+                        ['middle_school', 'high_school', 'college', 'university'].includes(i.type)
+                    );
+                } else if (institutionalType === 'madarsa') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'madarsa');
+                } else if (institutionalType === 'health') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'hospital');
+                }
+            }
+            
+            let institutionOptions = '';
+            let selectedInstitutionText = 'Select Institution';
+            if (isInstitutional && beneficiary.institution_id) {
+                const selectedInstitution = institutions.find(i => i.id == beneficiary.institution_id);
+                if (selectedInstitution) {
+                    selectedInstitutionText = `${selectedInstitution.name} [${selectedInstitution.code ?? 'N/A'}] - ${selectedInstitution.district?.name ?? 'N/A'}`;
+                }
+            }
+            filteredInstitutions.forEach(function(institution) {
+                const displayText = `${institution.name} [${institution.code ?? 'N/A'}] - ${institution.district?.name ?? 'N/A'}`;
+                const selected = institution.id == beneficiary.institution_id ? 'selected' : '';
+                institutionOptions += `<div class="custom-select-option" data-value="${institution.id}" data-text="${displayText}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; ${selected ? 'background-color: #e7f3ff;' : ''}">${displayText}</div>`;
+            });
 
             // Format dates
             const dob = beneficiary.date_of_birth || '';
             const repDob = beneficiary.representative?.date_of_birth || '';
 
-            // Check if representative is required (age < 18)
+            // Check if representative is required (age < 18 AND scheme allows representative)
             let requiresRep = beneficiary.requires_representative || false;
             if (dob) {
                 const birthDate = new Date(dob);
@@ -2933,7 +3217,8 @@
                 if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
                     age--;
                 }
-                requiresRep = age < 18;
+                // Representative required only if age < 18 AND scheme allows representative
+                requiresRep = (age < 18 && allowsRepresentative);
             }
 
             Swal.fire({
@@ -2961,6 +3246,39 @@
                             </div>
                         </div>
 
+                        ${isInstitutional ? `
+                        <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                            <div class="card-body">
+                                <h6 class="card-title mb-3">Institution</h6>
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        ${isInstitutionUser && currentInstitution ? `
+                                            <label class="form-label">Institution</label>
+                                            <p class="mb-0"><strong>${currentInstitution.name} [${currentInstitution.code ?? 'N/A'}] - ${currentInstitution.district?.name ?? 'N/A'}</strong></p>
+                                            <input type="hidden" name="institution_id" id="edit_institution_id" value="${currentInstitution.id}">
+                                        ` : `
+                                            <label class="form-label">Institution <span class="text-danger">*</span></label>
+                                            <div class="custom-searchable-select" style="position: relative;">
+                                                <input type="hidden" name="institution_id" id="edit_institution_id" value="${beneficiary.institution_id || ''}" required>
+                                                <div class="custom-select-display" id="edit_institution_select_display" style="border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;">
+                                                    <span class="select-placeholder" style="color: #212529;">${selectedInstitutionText}</span>
+                                                    <span class="select-arrow" style="margin-left: auto;">▼</span>
+                                                </div>
+                                                <div class="custom-select-dropdown" id="edit_institution_select_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;">
+                                                    <div class="custom-select-search" style="padding: 8px; border-bottom: 1px solid #dee2e6;">
+                                                        <input type="text" id="edit_institution_search_input" class="form-control form-control-sm" placeholder="Search institution..." autocomplete="off">
+                                                    </div>
+                                                    <div class="custom-select-options" id="edit_institution_select_options" style="max-height: 250px; overflow-y: auto;">
+                                                        ${institutionOptions}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        ` : `
                         <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
                             <div class="card-body">
                                 <h6 class="card-title mb-3">Local Zakat Committee Selection</h6>
@@ -2968,7 +3286,7 @@
                                     <div class="col-md-12 mb-3">
                                         <label class="form-label">Local Zakat Committee <span class="text-danger">*</span></label>
                                         <div class="custom-searchable-select" style="position: relative;">
-                                            <input type="hidden" name="local_zakat_committee_id" id="edit_local_zakat_committee_id" value="${beneficiary.local_zakat_committee_id}" required>
+                                            <input type="hidden" name="local_zakat_committee_id" id="edit_local_zakat_committee_id" value="${beneficiary.local_zakat_committee_id || ''}" required>
                                             <div class="custom-select-display" id="edit_lzc_select_display" style="border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;">
                                                 <span class="select-placeholder" style="color: #212529;">${selectedCommitteeText}</span>
                                                 <span class="select-arrow" style="margin-left: auto;">▼</span>
@@ -2986,14 +3304,15 @@
                                 </div>
                             </div>
                         </div>
+                        `}
 
                         <hr>
                         <h6>Beneficiary Information</h6>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">CNIC <span class="text-danger">*</span></label>
+                                <label class="form-label">CNIC <span class="text-danger" id="edit_cnicRequired" style="display: ${beneficiaryRequiredFields.includes('cnic') ? 'inline' : 'none'};">*</span></label>
                                 <div class="input-group">
-                                    <input type="text" name="cnic" id="edit_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" value="${beneficiary.cnic || ''}" required>
+                                    <input type="text" name="cnic" id="edit_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" value="${beneficiary.cnic || ''}" ${beneficiaryRequiredFields.includes('cnic') ? 'required' : ''}>
                                     <button type="button" class="btn btn-primary" id="edit_fetchBeneficiaryDetailsBtn" title="Fetch details from Wheat Distribution System">
                                         <i class="ti-search"></i> Fetch Details
                                     </button>
@@ -3001,9 +3320,9 @@
                                 <small class="text-muted">Format: XXXXX-XXXXXXX-X</small>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <label class="form-label">Full Name <span class="text-danger" id="edit_full_nameRequired" style="display: ${beneficiaryRequiredFields.includes('full_name') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="full_name" id="edit_full_name" class="form-control" value="${beneficiary.full_name || ''}" required>
+                                    <input type="text" name="full_name" id="edit_full_name" class="form-control" value="${beneficiary.full_name || ''}" ${beneficiaryRequiredFields.includes('full_name') ? 'required' : ''}>
                                     <div id="edit_apiFullName" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_full_name" title="Copy to form field">
@@ -3013,9 +3332,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Father/Husband Name <span class="text-danger">*</span></label>
+                                <label class="form-label">Father/Husband Name <span class="text-danger" id="edit_father_husband_nameRequired" style="display: ${beneficiaryRequiredFields.includes('father_husband_name') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="father_husband_name" id="edit_father_husband_name" class="form-control" value="${beneficiary.father_husband_name || ''}" required>
+                                    <input type="text" name="father_husband_name" id="edit_father_husband_name" class="form-control" value="${beneficiary.father_husband_name || ''}" ${beneficiaryRequiredFields.includes('father_husband_name') ? 'required' : ''}>
                                     <div id="edit_apiFatherHusbandName" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_father_husband_name" title="Copy to form field">
@@ -3025,9 +3344,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Mobile Number</label>
+                                <label class="form-label">Mobile Number <span class="text-danger" id="edit_mobile_numberRequired" style="display: ${beneficiaryRequiredFields.includes('mobile_number') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="mobile_number" id="edit_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" value="${beneficiary.mobile_number || ''}">
+                                    <input type="text" name="mobile_number" id="edit_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" value="${beneficiary.mobile_number || ''}" ${beneficiaryRequiredFields.includes('mobile_number') ? 'required' : ''}>
                                     <div id="edit_apiMobileNumber" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_mobile_number" title="Copy to form field">
@@ -3050,9 +3369,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                <label class="form-label">Gender <span class="text-danger" id="edit_genderRequired" style="display: ${beneficiaryRequiredFields.includes('gender') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <select name="gender" id="edit_gender" class="form-control" required>
+                                    <select name="gender" id="edit_gender" class="form-control" ${beneficiaryRequiredFields.includes('gender') ? 'required' : ''}>
                                         <option value="">Select Gender</option>
                                         <option value="male" ${beneficiary.gender === 'male' ? 'selected' : ''}>Male</option>
                                         <option value="female" ${beneficiary.gender === 'female' ? 'selected' : ''}>Female</option>
@@ -3066,6 +3385,12 @@
                                     </div>
                                 </div>
                             </div>
+                            ${institutionalType === 'educational' ? `
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Class <span class="text-danger">*</span></label>
+                                <input type="text" name="class" id="edit_class" class="form-control" placeholder="e.g., 5th, 10th, 1st Year" value="${beneficiary.class || ''}" required>
+                            </div>
+                            ` : ''}
                             <div class="col-md-6 mb-3" id="edit_amountDiv">
                                 <label class="form-label">Amount <span class="text-danger" id="edit_amountRequired" style="display: none;">*</span></label>
                                 <input type="number" name="amount" id="edit_amount" class="form-control" step="0.01" min="0" value="${beneficiary.amount || 0}" readonly>
@@ -3445,7 +3770,7 @@
                                         <div class="col-md-6 mb-2"><strong>Amount:</strong> Rs. ${parseFloat(b.amount || 0).toFixed(2)}</div>
                                         <div class="col-md-6 mb-2"><strong>Status:</strong> <span class="badge bg-${getStatusColor(b.status)}">${b.status || 'N/A'}</span></div>
                                         <div class="col-md-12 mb-2"><strong>Representative Required:</strong> ${b.requires_representative ? 'Yes (Age < 18)' : 'No (Age ≥ 18)'}</div>
-                                        ${b.district_remarks ? `<div class="col-md-12 mb-2"><strong>District Remarks:</strong> ${b.district_remarks}</div>` : ''}
+                                        ${b.district_remarks ? `<div class="col-md-12 mb-2"><strong>{{ auth()->user()->isInstitutionUser() ? 'Remarks' : 'District Remarks' }}:</strong> ${b.district_remarks}</div>` : ''}
                                         ${b.admin_remarks ? `<div class="col-md-12 mb-2"><strong>Admin Remarks:</strong> ${b.admin_remarks}</div>` : ''}
                                         ${b.rejection_remarks ? `<div class="col-md-12 mb-2"><strong>Rejection Remarks:</strong> ${b.rejection_remarks}</div>` : ''}
                                     </div>
@@ -3723,7 +4048,7 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label"><strong>District Remarks</strong></label>
+                            <label class="form-label"><strong>{{ auth()->user()->isInstitutionUser() ? 'Remarks' : 'District Remarks' }}</strong></label>
                             <textarea name="district_remarks" id="verify_district_remarks" class="form-control" rows="3" placeholder="Enter any remarks or observations after comparing with API data...">${beneficiary.district_remarks || ''}</textarea>
                             <small class="text-muted">Add any remarks or observations after comparing the beneficiary data with the API data.</small>
                         </div>

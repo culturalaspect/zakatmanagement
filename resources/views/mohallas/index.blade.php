@@ -35,15 +35,44 @@
                                         <i class="ti-filter"></i> Filters
                                     </h6>
                                     <div class="row">
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">District</label>
+                                            <select id="filterDistrict" class="form-control form-control-sm">
+                                                <option value="">All Districts</option>
+                                                @foreach($districts as $district)
+                                                    <option value="{{ $district->name }}">{{ $district->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Tehsil</label>
+                                            <select id="filterTehsil" class="form-control form-control-sm">
+                                                <option value="">All Tehsils</option>
+                                                @foreach($tehsils as $tehsil)
+                                                    <option value="{{ $tehsil->name }}" data-district-id="{{ $tehsil->district_id }}">{{ $tehsil->name }} ({{ $tehsil->district->name ?? '' }})</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Union Council</label>
+                                            <select id="filterUnionCouncil" class="form-control form-control-sm">
+                                                <option value="">All Union Councils</option>
+                                                @foreach($unionCouncils as $uc)
+                                                    <option value="{{ $uc->name }}" data-tehsil-id="{{ $uc->tehsil_id }}">{{ $uc->name }} ({{ $uc->tehsil->name ?? '' }})</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Village</label>
                                             <select id="filterVillage" class="form-control form-control-sm">
                                                 <option value="">All Villages</option>
                                                 @foreach($villages as $village)
-                                                    <option value="{{ $village->name }}">{{ $village->name }} ({{ $village->unionCouncil->tehsil->district->name ?? '' }})</option>
+                                                    <option value="{{ $village->name }}" data-union-council-id="{{ $village->union_council_id }}">{{ $village->name }} ({{ $village->unionCouncil->tehsil->district->name ?? '' }})</option>
                                                 @endforeach
                                             </select>
                                         </div>
+                                    </div>
+                                    <div class="row">
                                         <div class="col-md-4 mb-3">
                                             <label class="form-label">Status</label>
                                             <select id="filterStatus" class="form-control form-control-sm">
@@ -52,7 +81,7 @@
                                                 <option value="inactive">Inactive</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-8 mb-3">
                                             <label class="form-label">Search</label>
                                             <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="Search by name...">
                                         </div>
@@ -87,9 +116,9 @@
                                 <tr>
                                     <td>{{ $mohalla->name }}</td>
                                     <td data-village="{{ $mohalla->village->name ?? '' }}">{{ $mohalla->village->name ?? 'N/A' }}</td>
-                                    <td>{{ $mohalla->village->unionCouncil->name ?? 'N/A' }}</td>
-                                    <td>{{ $mohalla->village->unionCouncil->tehsil->name ?? 'N/A' }}</td>
-                                    <td>{{ $mohalla->village->unionCouncil->tehsil->district->name ?? 'N/A' }}</td>
+                                    <td data-union-council="{{ $mohalla->village->unionCouncil->name ?? '' }}">{{ $mohalla->village->unionCouncil->name ?? 'N/A' }}</td>
+                                    <td data-tehsil="{{ $mohalla->village->unionCouncil->tehsil->name ?? '' }}">{{ $mohalla->village->unionCouncil->tehsil->name ?? 'N/A' }}</td>
+                                    <td data-district="{{ $mohalla->village->unionCouncil->tehsil->district->name ?? '' }}">{{ $mohalla->village->unionCouncil->tehsil->district->name ?? 'N/A' }}</td>
                                     <td data-status="{{ $mohalla->is_active ? 'active' : 'inactive' }}">
                                         @if($mohalla->is_active)
                                             <span class="badge bg-success">Active</span>
@@ -259,6 +288,33 @@
             return rowStatus === statusValue;
         };
 
+        var districtFilter = function(settings, data, dataIndex) {
+            var districtValue = $('#filterDistrict').val();
+            if (districtValue === '') return true;
+            var row = table.row(dataIndex).node();
+            var rowDistrict = $(row).find('td:eq(4)').attr('data-district');
+            if (!rowDistrict) return true;
+            return rowDistrict === districtValue;
+        };
+
+        var tehsilFilter = function(settings, data, dataIndex) {
+            var tehsilValue = $('#filterTehsil').val();
+            if (tehsilValue === '') return true;
+            var row = table.row(dataIndex).node();
+            var rowTehsil = $(row).find('td:eq(3)').attr('data-tehsil');
+            if (!rowTehsil) return true;
+            return rowTehsil === tehsilValue;
+        };
+
+        var unionCouncilFilter = function(settings, data, dataIndex) {
+            var ucValue = $('#filterUnionCouncil').val();
+            if (ucValue === '') return true;
+            var row = table.row(dataIndex).node();
+            var rowUC = $(row).find('td:eq(2)').attr('data-union-council');
+            if (!rowUC) return true;
+            return rowUC === ucValue;
+        };
+
         var villageFilter = function(settings, data, dataIndex) {
             var villageValue = $('#filterVillage').val();
             if (villageValue === '') return true;
@@ -267,6 +323,75 @@
             if (!rowVillage) return true;
             return rowVillage === villageValue;
         };
+
+        // Cascading filters
+        $('#filterDistrict').on('change', function() {
+            var selectedDistrict = $(this).val();
+            // Filter tehsils by matching district name in parentheses
+            $('#filterTehsil option').show();
+            if (selectedDistrict) {
+                $('#filterTehsil option').each(function() {
+                    var optionText = $(this).text();
+                    var districtMatch = optionText.match(/\(([^)]+)\)/);
+                    if (districtMatch && districtMatch[1] !== selectedDistrict) {
+                        $(this).hide();
+                    }
+                });
+            }
+            $('#filterTehsil').val('').trigger('change');
+            
+            // Apply filter
+            var index = $.fn.dataTable.ext.search.indexOf(districtFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            if ($(this).val() !== '') {
+                $.fn.dataTable.ext.search.push(districtFilter);
+            }
+            table.draw();
+        });
+
+        $('#filterTehsil').on('change', function() {
+            var selectedOption = $(this).find('option:selected');
+            var tehsilId = selectedOption.data('tehsil-id');
+            // Filter union councils
+            $('#filterUnionCouncil option').show();
+            if (tehsilId) {
+                $('#filterUnionCouncil option').not('[value=""]').not('[data-tehsil-id="' + tehsilId + '"]').hide();
+            }
+            $('#filterUnionCouncil').val('').trigger('change');
+            
+            // Apply filter
+            var index = $.fn.dataTable.ext.search.indexOf(tehsilFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            if ($(this).val() !== '') {
+                $.fn.dataTable.ext.search.push(tehsilFilter);
+            }
+            table.draw();
+        });
+
+        $('#filterUnionCouncil').on('change', function() {
+            var selectedOption = $(this).find('option:selected');
+            var ucId = selectedOption.data('union-council-id');
+            // Filter villages
+            $('#filterVillage option').show();
+            if (ucId) {
+                $('#filterVillage option').not('[value=""]').not('[data-union-council-id="' + ucId + '"]').hide();
+            }
+            $('#filterVillage').val('').trigger('change');
+            
+            // Apply filter
+            var index = $.fn.dataTable.ext.search.indexOf(unionCouncilFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            if ($(this).val() !== '') {
+                $.fn.dataTable.ext.search.push(unionCouncilFilter);
+            }
+            table.draw();
+        });
 
         $('#filterVillage').on('change', function() {
             var index = $.fn.dataTable.ext.search.indexOf(villageFilter);
@@ -299,10 +424,25 @@
             if (statusIndex !== -1) {
                 $.fn.dataTable.ext.search.splice(statusIndex, 1);
             }
+            var districtIndex = $.fn.dataTable.ext.search.indexOf(districtFilter);
+            if (districtIndex !== -1) {
+                $.fn.dataTable.ext.search.splice(districtIndex, 1);
+            }
+            var tehsilIndex = $.fn.dataTable.ext.search.indexOf(tehsilFilter);
+            if (tehsilIndex !== -1) {
+                $.fn.dataTable.ext.search.splice(tehsilIndex, 1);
+            }
+            var ucIndex = $.fn.dataTable.ext.search.indexOf(unionCouncilFilter);
+            if (ucIndex !== -1) {
+                $.fn.dataTable.ext.search.splice(ucIndex, 1);
+            }
             var villageIndex = $.fn.dataTable.ext.search.indexOf(villageFilter);
             if (villageIndex !== -1) {
                 $.fn.dataTable.ext.search.splice(villageIndex, 1);
             }
+            $('#filterDistrict').val('').trigger('change');
+            $('#filterTehsil').val('').trigger('change');
+            $('#filterUnionCouncil').val('').trigger('change');
             $('#filterVillage').val('');
             $('#filterStatus').val('');
             $('#filterSearch').val('');

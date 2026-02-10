@@ -1,0 +1,2687 @@
+<?php $__env->startSection('title', config('app.name') . ' - Beneficiaries'); ?>
+<?php $__env->startSection('page_title', 'Beneficiaries'); ?>
+<?php $__env->startSection('breadcrumb', 'Beneficiaries'); ?>
+
+<?php $__env->startPush('styles'); ?>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    /* Left align form fields in SweetAlert modals */
+    .swal2-html-container {
+        text-align: left !important;
+    }
+    
+    .swal2-html-container form,
+    .swal2-html-container .row,
+    .swal2-html-container .mb-3,
+    .swal2-html-container .form-label,
+    .swal2-html-container .form-control,
+    .swal2-html-container select,
+    .swal2-html-container textarea,
+    .swal2-html-container input {
+        text-align: left !important;
+    }
+    
+    .swal2-html-container .form-label {
+        display: block;
+        text-align: left !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .swal2-html-container .text-left {
+        text-align: left !important;
+    }
+    
+    /* Custom Searchable Select Styles */
+    .custom-select-option:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .custom-select-option.selected {
+        background-color: #e7f3ff;
+        font-weight: 500;
+    }
+    
+    .custom-select-display:hover {
+        border-color: #86b7fe;
+    }
+    
+    .custom-select-display.active {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* API Data Container Styles */
+    .api-data-container {
+        margin-top: 5px;
+        padding: 8px;
+        background-color: #e7f3ff;
+        border: 1px solid #b3d9ff;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.875rem;
+    }
+    
+    .api-data-value {
+        flex: 1;
+        color: #004085;
+        font-weight: 500;
+    }
+    
+    .api-copy-btn {
+        margin-left: 8px;
+        padding: 4px 8px;
+        font-size: 0.75rem;
+    }
+    
+    /* Family Tree Grid Styles */
+    .family-tree-grid {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        min-height: 150px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .family-tree-root {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        padding-bottom: 20px;
+    }
+    
+    .family-tree-children {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        margin-top: 20px;
+        position: relative;
+        padding-top: 20px;
+    }
+    
+    .family-tree-node {
+        position: relative;
+        width: 140px;
+        background: #fff;
+        border: 2px solid #ced4da;
+        border-radius: 8px;
+        padding: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    
+    .family-tree-node:hover {
+        border-color: #567AED;
+        box-shadow: 0 4px 8px rgba(86, 122, 237, 0.2);
+        transform: translateY(-2px);
+    }
+    
+    .family-tree-node.selected {
+        border-color: #28a745;
+        background-color: #d4edda;
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+    
+    .family-tree-node.selected::after {
+        content: '✓';
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #28a745;
+        color: #fff;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .family-tree-node.root-node {
+        border-color: #ffc107;
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        font-weight: 600;
+    }
+    
+    .family-tree-node.root-node::before {
+        content: "👑";
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #ffc107;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .family-tree-node.child-node {
+        border-color: #17a2b8;
+        background: linear-gradient(135deg, #e7f3ff 0%, #d1ecf1 100%);
+    }
+    
+    .family-tree-node-name {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #212529;
+        margin: 0 0 4px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .family-tree-node-relationship {
+        font-size: 0.7rem;
+        color: #6c757d;
+        background-color: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-weight: 500;
+        display: inline-block;
+    }
+    
+    .family-tree-node-age {
+        font-size: 0.7rem;
+        color: #495057;
+        margin-top: 4px;
+        font-weight: 500;
+    }
+    
+    /* Custom Toast Notification Styles */
+    .custom-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        min-width: 300px;
+        max-width: 500px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        padding: 16px;
+        animation: slideInRight 0.3s ease-out;
+    }
+    
+    .custom-toast.success {
+        border-left: 4px solid #28a745;
+    }
+    
+    .custom-toast.error {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .custom-toast.warning {
+        border-left: 4px solid #ffc107;
+    }
+    
+    .custom-toast.info {
+        border-left: 4px solid #17a2b8;
+    }
+    
+    .custom-toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    
+    .custom-toast.success .custom-toast-icon {
+        background-color: #28a745;
+        color: #fff;
+    }
+    
+    .custom-toast.error .custom-toast-icon {
+        background-color: #dc3545;
+        color: #fff;
+    }
+    
+    .custom-toast.warning .custom-toast-icon {
+        background-color: #ffc107;
+        color: #000;
+    }
+    
+    .custom-toast.info .custom-toast-icon {
+        background-color: #17a2b8;
+        color: #fff;
+    }
+    
+    .custom-toast-content {
+        flex: 1;
+    }
+    
+    .custom-toast-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #333;
+    }
+    
+    .custom-toast-message {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .custom-toast-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #999;
+        cursor: pointer;
+        padding: 0;
+        margin-left: 12px;
+        line-height: 1;
+    }
+    
+    .custom-toast-close:hover {
+        color: #333;
+    }
+    
+    .custom-toast-progress-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background-color: rgba(255, 255, 255, 0.3);
+        animation: progressBar 3s linear forwards;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    @keyframes progressBar {
+        from {
+            width: 100%;
+        }
+        to {
+            width: 0%;
+        }
+    }
+    
+    .custom-toast.hiding {
+        animation: slideOutRight 0.3s ease-out forwards;
+    }
+</style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startSection('content'); ?>
+<div class="row">
+    <div class="col-12">
+        <div class="white_card mb_30">
+            <div class="white_card_header">
+                <div class="box_header m-0">
+                    <div class="main-title">
+                        <h3 class="m-0">Beneficiaries List</h3>
+                    </div>
+                    <div class="header_more_tool">
+                        <div class="dropdown">
+                            <span class="dropdown-toggle" id="dropdownMenuButton" data-bs-toggle="dropdown">
+                                <i class="ti-more-alt"></i>
+                            </span>
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenuButton">
+                                <a class="dropdown-item" href="<?php echo e(route('beneficiaries.create')); ?>"><i class="ti-plus"></i> Add New</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="white_card_body">
+                <?php if($beneficiaries->isEmpty()): ?>
+                    <div class="alert alert-info">
+                        <i class="ti-info-alt"></i> No beneficiaries found.
+                    </div>
+                <?php else: ?>
+                    <!-- Filters Section -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-3">
+                                        <i class="ti-filter"></i> Filters
+                                    </h6>
+                                    <div class="row">
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">District</label>
+                                            <select id="filterDistrict" class="form-control form-control-sm">
+                                                <option value="">All Districts</option>
+                                                <?php $__currentLoopData = $districts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $district): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <option value="<?php echo e($district->name); ?>"><?php echo e($district->name); ?></option>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Scheme</label>
+                                            <select id="filterScheme" class="form-control form-control-sm">
+                                                <option value="">All Schemes</option>
+                                                <?php $__currentLoopData = $schemes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $scheme): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <option value="<?php echo e($scheme->name); ?>"><?php echo e($scheme->name); ?></option>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Financial Year</label>
+                                            <select id="filterFinancialYear" class="form-control form-control-sm">
+                                                <option value="">All Financial Years</option>
+                                                <?php $__currentLoopData = $financialYears; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $fy): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <option value="<?php echo e($fy->name); ?>"><?php echo e($fy->name); ?></option>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
+                                            <label class="form-label">Status</label>
+                                            <select id="filterStatus" class="form-control form-control-sm">
+                                                <option value="">All Status</option>
+                                                <option value="pending">Pending</option>
+                                                <option value="submitted">Submitted</option>
+                                                <option value="approved">Approved</option>
+                                                <option value="rejected">Rejected</option>
+                                                <option value="paid">Paid</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <button type="button" id="clearFilters" class="btn btn-sm btn-secondary">
+                                                <i class="ti-close"></i> Clear Filters
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table" id="beneficiariesTable">
+                            <thead>
+                                <tr>
+                                    <th>CNIC</th>
+                                    <th>Name</th>
+                                    <th>District</th>
+                                    <th>Scheme</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Submitted At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $__empty_1 = true; $__currentLoopData = $beneficiaries; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $beneficiary): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                                <tr>
+                                    <td><?php echo e($beneficiary->cnic); ?></td>
+                                    <td><?php echo e($beneficiary->full_name); ?></td>
+                                    <td data-financial-year="<?php echo e($beneficiary->phase->installment->fundAllocation->financialYear->name ?? ''); ?>"><?php echo e($beneficiary->phase->district->name ?? 'N/A'); ?></td>
+                                    <td><?php echo e($beneficiary->scheme->name ?? 'N/A'); ?></td>
+                                    <td>Rs. <?php echo e(number_format($beneficiary->amount, 2)); ?></td>
+                                    <td data-status="<?php echo e($beneficiary->status); ?>">
+                                        <?php if($beneficiary->status == 'pending'): ?>
+                                            <span class="badge bg-warning">Pending</span>
+                                        <?php elseif($beneficiary->status == 'submitted'): ?>
+                                            <span class="badge bg-info">Submitted</span>
+                                        <?php elseif($beneficiary->status == 'approved'): ?>
+                                            <span class="badge bg-success">Approved</span>
+                                        <?php elseif($beneficiary->status == 'rejected'): ?>
+                                            <span class="badge bg-danger">Rejected</span>
+                                        <?php elseif($beneficiary->status == 'paid'): ?>
+                                            <span class="badge bg-primary">Paid</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo e($beneficiary->submitted_at ? $beneficiary->submitted_at->format('Y-m-d H:i') : 'N/A'); ?></td>
+                                <td>
+                                    <div class="action_btns d-flex">
+                                        <button type="button" class="action_btn mr_10 viewBeneficiaryBtn"
+                                                data-beneficiary-id="<?php echo e($beneficiary->id); ?>"
+                                                title="View Details">
+                                            <i class="ti-eye"></i>
+                                        </button>
+                                        <?php if(in_array($beneficiary->status, ['pending', 'rejected'])): ?>
+                                        <button type="button" class="action_btn mr_10 editBeneficiaryBtn"
+                                                data-beneficiary-id="<?php echo e($beneficiary->id); ?>"
+                                                title="Edit">
+                                            <i class="ti-pencil"></i>
+                                        </button>
+                                        <?php endif; ?>
+                                        <?php if(in_array($beneficiary->status, ['pending', 'submitted'])): ?>
+                                        <button type="button" class="action_btn mr_10 verifyBeneficiaryBtn"
+                                                data-beneficiary-id="<?php echo e($beneficiary->id); ?>"
+                                                title="Verify/Submit">
+                                            <i class="ti-check"></i>
+                                        </button>
+                                        <?php endif; ?>
+                                        <?php if(in_array($beneficiary->status, ['pending', 'rejected'])): ?>
+                                        <button type="button" class="action_btn mr_10 deleteBeneficiaryBtn"
+                                                data-beneficiary-id="<?php echo e($beneficiary->id); ?>"
+                                                data-beneficiary-name="<?php echo e($beneficiary->full_name); ?>"
+                                                title="Delete">
+                                            <i class="ti-trash"></i>
+                                        </button>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                            <tr>
+                                <td colspan="8" class="text-center">No beneficiaries found</td>
+                            </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php $__env->startPush('styles'); ?>
+<style>
+    /* DataTables Buttons Styling */
+    .dt-buttons {
+        margin-bottom: 15px;
+    }
+    
+    .dt-buttons .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .dt-buttons .btn i {
+        margin-right: 5px;
+    }
+</style>
+<?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<!-- DataTables Buttons JS -->
+<script src="<?php echo e(asset('assets/vendors/datatable/js/dataTables.buttons.min.js')); ?>"></script>
+<script src="<?php echo e(asset('assets/vendors/datatable/js/buttons.html5.min.js')); ?>"></script>
+<script src="<?php echo e(asset('assets/vendors/datatable/js/buttons.print.min.js')); ?>"></script>
+<script src="<?php echo e(asset('assets/vendors/datatable/js/jszip.min.js')); ?>"></script>
+<script src="<?php echo e(asset('assets/vendors/datatable/js/pdfmake.min.js')); ?>"></script>
+<script src="<?php echo e(asset('assets/vendors/datatable/js/vfs_fonts.js')); ?>"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function() {
+        const schemes = <?php echo json_encode($schemes ?? [], 15, 512) ?>;
+        const committees = <?php echo json_encode($committees ?? [], 15, 512) ?>;
+        const institutions = <?php echo json_encode($institutions ?? [], 15, 512) ?>;
+        const isInstitutionUser = <?php echo e(auth()->user()->isInstitutionUser() ? 'true' : 'false'); ?>;
+        const currentInstitution = <?php echo json_encode(auth()->user()->institution ?? null, 15, 512) ?>;
+        
+        var table = $('#beneficiariesTable').DataTable({
+            responsive: true,
+            dom: 'Bfrtip',
+            buttons: [
+                {
+                    extend: 'copy',
+                    text: '<i class="ti-files"></i> Copy',
+                    className: 'btn btn-sm btn-secondary',
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6], // Exclude Actions column
+                        format: {
+                            body: function(data, row, column, node) {
+                                // Remove HTML tags and get text content
+                                var div = document.createElement('div');
+                                div.innerHTML = data;
+                                var text = div.textContent || div.innerText || '';
+                                // Clean up extra whitespace
+                                return text.trim().replace(/\s+/g, ' ');
+                            }
+                        }
+                    }
+                },
+                {
+                    extend: 'csv',
+                    text: '<i class="ti-file"></i> CSV',
+                    className: 'btn btn-sm btn-secondary',
+                    filename: 'beneficiaries-' + new Date().toISOString().split('T')[0],
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6], // Exclude Actions column
+                        format: {
+                            body: function(data, row, column, node) {
+                                // Remove HTML tags and get text content
+                                var div = document.createElement('div');
+                                div.innerHTML = data;
+                                var text = div.textContent || div.innerText || '';
+                                // Clean up extra whitespace
+                                return text.trim().replace(/\s+/g, ' ');
+                            }
+                        }
+                    }
+                },
+                {
+                    extend: 'excel',
+                    text: '<i class="ti-file"></i> Excel',
+                    className: 'btn btn-sm btn-success',
+                    filename: 'beneficiaries-' + new Date().toISOString().split('T')[0],
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6], // Exclude Actions column
+                        format: {
+                            body: function(data, row, column, node) {
+                                // Remove HTML tags and get text content
+                                var div = document.createElement('div');
+                                div.innerHTML = data;
+                                var text = div.textContent || div.innerText || '';
+                                // Clean up extra whitespace
+                                return text.trim().replace(/\s+/g, ' ');
+                            }
+                        }
+                    }
+                },
+                {
+                    extend: 'pdf',
+                    text: '<i class="ti-file"></i> PDF',
+                    className: 'btn btn-sm btn-danger',
+                    filename: 'beneficiaries-' + new Date().toISOString().split('T')[0],
+                    orientation: 'landscape',
+                    pageSize: 'A4',
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6], // Exclude Actions column
+                        format: {
+                            body: function(data, row, column, node) {
+                                // Remove HTML tags and get text content
+                                var div = document.createElement('div');
+                                div.innerHTML = data;
+                                var text = div.textContent || div.innerText || '';
+                                // Clean up extra whitespace
+                                return text.trim().replace(/\s+/g, ' ');
+                            }
+                        }
+                    },
+                    customize: function(doc) {
+                        doc.defaultStyle.fontSize = 8;
+                        doc.styles.tableHeader.fontSize = 9;
+                        doc.styles.tableHeader.alignment = 'center';
+                        doc.content[1].table.widths = ['*', '*', '*', '*', '*', '*', '*'];
+                    }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="ti-printer"></i> Print',
+                    className: 'btn btn-sm btn-info',
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6] // Exclude Actions column
+                    },
+                    customize: function(win) {
+                        $(win.document.body).find('table').addClass('display').css('font-size', '10px');
+                        $(win.document.body).find('tr:nth-child(odd)').css('background-color', '#f9f9f9');
+                    }
+                }
+            ],
+            order: [[6, 'desc']]
+        });
+
+        // Store status filter function reference
+        var statusFilter = function(settings, data, dataIndex) {
+            var statusValue = $('#filterStatus').val().toLowerCase();
+            if (statusValue === '') return true;
+            
+            var row = table.row(dataIndex).node();
+            var rowStatus = $(row).find('td:eq(5)').attr('data-status');
+            if (!rowStatus) return true;
+            
+            return rowStatus.toLowerCase() === statusValue;
+        };
+
+        // Filter by District (column 2)
+        $('#filterDistrict').on('change', function() {
+            var value = $(this).val();
+            table.column(2).search(value).draw();
+        });
+
+        // Filter by Scheme (column 3)
+        $('#filterScheme').on('change', function() {
+            var value = $(this).val();
+            table.column(3).search(value).draw();
+        });
+
+        // Filter by Financial Year - need to check phase's financial year
+        $('#filterFinancialYear').on('change', function() {
+            var value = $(this).val();
+            if (value === '') {
+                table.column(2).search('').draw();
+                return;
+            }
+            
+            // Use custom filter for financial year since it's not a direct column
+            var index = $.fn.dataTable.ext.search.indexOf(financialYearFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            
+            if (value !== '') {
+                $.fn.dataTable.ext.search.push(financialYearFilter);
+            }
+            
+            table.draw();
+        });
+
+        // Financial Year filter function
+        var financialYearFilter = function(settings, data, dataIndex) {
+            var fyValue = $('#filterFinancialYear').val();
+            if (fyValue === '') return true;
+            
+            var row = table.row(dataIndex).node();
+            var rowFY = $(row).find('td:eq(2)').attr('data-financial-year');
+            if (!rowFY) return true;
+            
+            return rowFY === fyValue;
+        };
+
+        // Filter by Status (column 5) - using data attribute
+        $('#filterStatus').on('change', function() {
+            // Remove existing status filter if any
+            var index = $.fn.dataTable.ext.search.indexOf(statusFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            
+            // Add status filter if a value is selected
+            if ($(this).val() !== '') {
+                $.fn.dataTable.ext.search.push(statusFilter);
+            }
+            
+            table.draw();
+        });
+
+        // Clear all filters
+        $('#clearFilters').on('click', function() {
+            // Remove status filter function
+            var index = $.fn.dataTable.ext.search.indexOf(statusFilter);
+            if (index !== -1) {
+                $.fn.dataTable.ext.search.splice(index, 1);
+            }
+            
+            // Remove financial year filter
+            var fyIndex = $.fn.dataTable.ext.search.indexOf(financialYearFilter);
+            if (fyIndex !== -1) {
+                $.fn.dataTable.ext.search.splice(fyIndex, 1);
+            }
+            
+            $('#filterDistrict').val('');
+            $('#filterScheme').val('');
+            $('#filterFinancialYear').val('');
+            $('#filterStatus').val('');
+            
+            table.search('').columns().search('').draw();
+        });
+
+        // Auto-open edit modal if edit parameter is in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const editBeneficiaryId = urlParams.get('edit');
+        if (editBeneficiaryId) {
+            editBeneficiary(editBeneficiaryId);
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // CNIC Formatting Function
+        function formatCNIC(value) {
+            value = value.replace(/\D/g, '');
+            if (value.length > 13) value = value.substring(0, 13);
+            let formatted = '';
+            if (value.length > 0) {
+                formatted = value.substring(0, 5);
+                if (value.length > 5) {
+                    formatted += '-' + value.substring(5, 12);
+                    if (value.length > 12) {
+                        formatted += '-' + value.substring(12, 13);
+                    }
+                }
+            }
+            return formatted;
+        }
+
+        // Mobile Number Formatting Function
+        function formatMobileNumber(value) {
+            value = value.replace(/\D/g, '');
+            if (value.length > 11) value = value.substring(0, 11);
+            let formatted = '';
+            if (value.length > 0) {
+                if (value.length >= 2 && value.substring(0, 2) === '03') {
+                    formatted = value.substring(0, 4);
+                    if (value.length > 4) {
+                        formatted += '-' + value.substring(4, 11);
+                    }
+                } else {
+                    if (value.length <= 4) {
+                        formatted = value;
+                    } else {
+                        formatted = value.substring(0, 4) + '-' + value.substring(4, 11);
+                    }
+                }
+            }
+            return formatted;
+        }
+        
+        // Custom Toast Notification Function
+        function showCustomToast(type, title, message, duration = 3000) {
+            $('.custom-toast').remove();
+            const toast = $('<div>')
+                .addClass('custom-toast ' + type)
+                .html(`
+                    <div class="custom-toast-icon">
+                        ${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '⚠' : 'ℹ'}
+                    </div>
+                    <div class="custom-toast-content">
+                        <div class="custom-toast-title">${title}</div>
+                        <div class="custom-toast-message">${message}</div>
+                    </div>
+                    <button type="button" class="custom-toast-close" onclick="$(this).closest('.custom-toast').remove()">×</button>
+                    <div class="custom-toast-progress-bar"></div>
+                `);
+            $('body').append(toast);
+            if (duration > 0) {
+                setTimeout(function() {
+                    toast.addClass('hiding');
+                    setTimeout(function() {
+                        toast.remove();
+                    }, 300);
+                }, duration);
+            }
+            toast.on('mouseenter', function() {
+                toast.find('.custom-toast-progress-bar').css('animation-play-state', 'paused');
+            }).on('mouseleave', function() {
+                toast.find('.custom-toast-progress-bar').css('animation-play-state', 'running');
+            });
+        }
+
+        // Edit Beneficiary Button Click
+        $(document).on('click', '.editBeneficiaryBtn', function() {
+            const beneficiaryId = $(this).data('beneficiary-id');
+            editBeneficiary(beneficiaryId);
+        });
+
+        function editBeneficiary(beneficiaryId) {
+            $.ajax({
+                url: '<?php echo e(route("beneficiaries.get-details", ":id")); ?>'.replace(':id', beneficiaryId),
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const b = response.beneficiary;
+                        const phaseDistrictId = b.phase ? b.phase.district_id : null;
+                        showEditBeneficiaryModal(b, phaseDistrictId);
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Failed to load beneficiary details.'
+                        });
+                    }
+                },
+                error: function() {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to load beneficiary details.'
+                    });
+                }
+            });
+        }
+
+        // Helper function to initialize custom select
+        function initCustomSelect(displaySelector, dropdownSelector, searchSelector, optionsSelector, hiddenInputSelector) {
+            const $display = $(displaySelector);
+            const $dropdown = $(dropdownSelector);
+            const $hiddenInput = $(hiddenInputSelector);
+            const $searchInput = $(searchSelector);
+            const $options = $(optionsSelector).find('.custom-select-option');
+            
+            $display.off('click').on('click', function(e) {
+                e.stopPropagation();
+                const isVisible = $dropdown.is(':visible');
+                $dropdown.toggle();
+                if (!isVisible) {
+                    $display.addClass('active');
+                    $searchInput.focus();
+                } else {
+                    $display.removeClass('active');
+                }
+            });
+            
+            $searchInput.off('input').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                $options.each(function() {
+                    const text = $(this).data('text').toLowerCase();
+                    if (text.includes(searchTerm)) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            });
+            
+            $options.off('click').on('click', function(e) {
+                e.stopPropagation();
+                const value = $(this).data('value');
+                const text = $(this).data('text');
+                
+                $hiddenInput.val(value);
+                $display.find('.select-placeholder').text(text).css('color', '#000');
+                $display.removeClass('active');
+                $dropdown.hide();
+                $searchInput.val('');
+                
+                $options.removeClass('selected');
+                $(this).addClass('selected');
+                $options.show();
+            });
+            
+            $(document).off('click.customSelect').on('click.customSelect', function(e) {
+                if (!$(e.target).closest($display.closest('.custom-searchable-select')).length) {
+                    $dropdown.hide();
+                    $display.removeClass('active');
+                }
+            });
+            
+            $dropdown.off('click.dropdownStop').on('click.dropdownStop', function(e) {
+                e.stopPropagation();
+            });
+        }
+
+        function loadSchemeCategories(schemeId, categorySelectSelector, categoryDivSelector, selectedCategoryId = null) {
+            $.ajax({
+                url: '<?php echo e(route("beneficiaries.scheme-categories", ":id")); ?>'.replace(':id', schemeId),
+                type: 'GET',
+                success: function(categories) {
+                    const $categorySelect = $(categorySelectSelector);
+                    const $categoryDiv = $(categoryDivSelector);
+                    
+                    $categorySelect.empty();
+                    $categorySelect.append('<option value="">Select Category</option>');
+                    
+                    if (categories && categories.length > 0) {
+                        categories.forEach(function(category) {
+                            const selected = selectedCategoryId && category.id == selectedCategoryId ? 'selected' : '';
+                            $categorySelect.append(`<option value="${category.id}" data-amount="${category.amount}" ${selected}>${category.name} - Rs. ${parseFloat(category.amount).toFixed(2)}</option>`);
+                        });
+                        $categoryDiv.show();
+                        
+                        if (selectedCategoryId) {
+                            const selectedOption = $categorySelect.find(`option[value="${selectedCategoryId}"]`);
+                            if (selectedOption.length) {
+                                const amount = selectedOption.data('amount');
+                                $('#edit_amount').val(amount || 0);
+                            }
+                        }
+                    } else {
+                        $categoryDiv.hide();
+                    }
+                },
+                error: function() {
+                    $(categoryDivSelector).hide();
+                }
+            });
+        }
+
+        function showEditBeneficiaryModal(beneficiary, phaseDistrictId = null) {
+            // Filter committees based on phase district or show all
+            const filteredCommittees = phaseDistrictId 
+                ? committees.filter(c => c.district?.id == phaseDistrictId)
+                : committees;
+
+            let committeeOptions = '';
+            filteredCommittees.forEach(function(committee) {
+                const displayText = `${committee.name} [${committee.code ?? 'N/A'}] - ${committee.district?.name ?? 'N/A'}`;
+                const selected = committee.id == beneficiary.local_zakat_committee_id ? 'selected' : '';
+                committeeOptions += `<div class="custom-select-option" data-value="${committee.id}" data-text="${displayText}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; ${selected ? 'background-color: #e7f3ff;' : ''}">${displayText}</div>`;
+            });
+
+            const selectedCommittee = filteredCommittees.find(c => c.id == beneficiary.local_zakat_committee_id);
+            const selectedCommitteeText = selectedCommittee ? `${selectedCommittee.name} [${selectedCommittee.code ?? 'N/A'}] - ${selectedCommittee.district?.name ?? 'N/A'}` : 'Select Committee';
+
+            const dob = beneficiary.date_of_birth || '';
+            const repDob = beneficiary.representative?.date_of_birth || '';
+
+            let requiresRep = beneficiary.requires_representative || false;
+            if (dob) {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                requiresRep = age < 18;
+            }
+
+            // Get scheme information
+            const scheme = schemes.find(s => s.id == beneficiary.scheme_id);
+            const isInstitutional = scheme?.is_institutional || false;
+            const institutionalType = scheme?.institutional_type || null;
+            const beneficiaryRequiredFields = scheme?.beneficiary_required_fields || [];
+            const allowsRepresentative = scheme?.allows_representative || false;
+            const hasAgeRestriction = scheme?.has_age_restriction || false;
+            const minimumAge = scheme?.minimum_age || 0;
+            
+            // Filter institutions based on institutional type
+            let filteredInstitutions = [];
+            if (isInstitutional) {
+                if (institutionalType === 'educational') {
+                    filteredInstitutions = institutions.filter(i => 
+                        ['middle_school', 'high_school', 'college', 'university'].includes(i.type)
+                    );
+                } else if (institutionalType === 'madarsa') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'madarsa');
+                } else if (institutionalType === 'health') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'hospital');
+                }
+            }
+            
+            let institutionOptions = '';
+            let selectedInstitutionText = 'Select Institution';
+            if (isInstitutional && beneficiary.institution_id) {
+                const selectedInstitution = institutions.find(i => i.id == beneficiary.institution_id);
+                if (selectedInstitution) {
+                    selectedInstitutionText = `${selectedInstitution.name} [${selectedInstitution.code ?? 'N/A'}] - ${selectedInstitution.district?.name ?? 'N/A'}`;
+                }
+            }
+            filteredInstitutions.forEach(function(institution) {
+                const displayText = `${institution.name} [${institution.code ?? 'N/A'}] - ${institution.district?.name ?? 'N/A'}`;
+                const selected = institution.id == beneficiary.institution_id ? 'selected' : '';
+                institutionOptions += `<div class="custom-select-option" data-value="${institution.id}" data-text="${displayText}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; ${selected ? 'background-color: #e7f3ff;' : ''}">${displayText}</div>`;
+            });
+
+            // Check if representative is required (age < 18 AND scheme allows representative)
+            if (dob) {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                // Representative required only if age < 18 AND scheme allows representative
+                requiresRep = (age < 18 && allowsRepresentative);
+            }
+            
+            const isInstitutionUser = <?php echo e(auth()->user()->isInstitutionUser() ? 'true' : 'false'); ?>;
+
+            Swal.fire({
+                title: 'Edit Beneficiary',
+                html: `
+                    <form id="editBeneficiaryForm" style="text-align: left;">
+                        <input type="hidden" name="beneficiary_id" value="${beneficiary.id}">
+                        <input type="hidden" name="scheme_id" id="edit_scheme_id" value="${beneficiary.scheme_id}">
+                        
+                        <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                            <div class="card-body">
+                                <h6 class="card-title mb-3">Scheme Information</h6>
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        <label class="form-label"><strong>Scheme:</strong></label>
+                                        <p class="mb-0">${beneficiary.scheme_name || 'N/A'}</p>
+                                    </div>
+                                    <div class="col-md-12 mb-3" id="edit_schemeCategoryDiv" style="display: ${beneficiary.scheme_category_id ? 'block' : 'none'};">
+                                        <label class="form-label">Scheme Category <span class="text-danger">*</span></label>
+                                        <select name="scheme_category_id" id="edit_scheme_category_id" class="form-control">
+                                            <option value="">Select Category</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        
+                        <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                            <div class="card-body">
+                                <h6 class="card-title mb-3">${isInstitutional ? 'Institution' : 'Local Zakat Committee'}</h6>
+                                <div class="row">
+                                    ${isInstitutional ? `
+                                        <div class="col-md-12 mb-3">
+                                            ${isInstitutionUser && currentInstitution ? `
+                                                <label class="form-label">Institution</label>
+                                                <p class="mb-0"><strong>${currentInstitution.name} [${currentInstitution.code ?? 'N/A'}] - ${currentInstitution.district?.name ?? 'N/A'}</strong></p>
+                                                <input type="hidden" name="institution_id" id="edit_institution_id" value="${currentInstitution.id}">
+                                            ` : `
+                                                <label class="form-label">Institution <span class="text-danger">*</span></label>
+                                                <div class="custom-searchable-select" style="position: relative;">
+                                                    <input type="hidden" name="institution_id" id="edit_institution_id" value="${beneficiary.institution_id || ''}" required>
+                                                    <div class="custom-select-display" id="edit_institution_select_display" style="border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;">
+                                                        <span class="select-placeholder" style="color: #212529;">${selectedInstitutionText}</span>
+                                                        <span class="select-arrow" style="margin-left: auto;">▼</span>
+                                                    </div>
+                                                    <div class="custom-select-dropdown" id="edit_institution_select_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;">
+                                                        <div class="custom-select-search" style="padding: 8px; border-bottom: 1px solid #dee2e6;">
+                                                            <input type="text" id="edit_institution_search_input" class="form-control form-control-sm" placeholder="Search institution..." autocomplete="off">
+                                                        </div>
+                                                        <div class="custom-select-options" id="edit_institution_select_options" style="max-height: 250px; overflow-y: auto;">
+                                                            ${institutionOptions}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `}
+                                        </div>
+                                    ` : `
+                                        <div class=\"col-md-12 mb-3\">
+                                            <label class=\"form-label\">Local Zakat Committee <span class=\"text-danger\">*</span></label>
+                                            <div class=\"custom-searchable-select\" style=\"position: relative;\">
+                                                <input type=\"hidden\" name=\"local_zakat_committee_id\" id=\"edit_local_zakat_committee_id\" value=\"${beneficiary.local_zakat_committee_id || ''}\" required>
+                                                <div class=\"custom-select-display\" id=\"edit_lzc_select_display\" style=\"border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;\">
+                                                    <span class=\"select-placeholder\" style=\"color: #212529;\">${selectedCommitteeText}</span>
+                                                    <span class=\"select-arrow\" style=\"margin-left: auto;\">▼</span>
+                                                </div>
+                                                <div class=\"custom-select-dropdown\" id=\"edit_lzc_select_dropdown\" style=\"display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;\">
+                                                    <div class=\"custom-select-search\" style=\"padding: 8px; border-bottom: 1px solid #dee2e6;\">
+                                                        <input type=\"text\" id=\"edit_lzc_search_input\" class=\"form-control form-control-sm\" placeholder=\"Search committee...\" autocomplete=\"off\">
+                                                    </div>
+                                                    <div class=\"custom-select-options\" id=\"edit_lzc_select_options\" style=\"max-height: 250px; overflow-y: auto;\">
+                                                        ${committeeOptions}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <h6>Beneficiary Information</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">CNIC <span class="text-danger" id="edit_cnicRequired" style="display: ${beneficiaryRequiredFields.includes('cnic') ? 'inline' : 'none'};">*</span></label>
+                                <div class="input-group">
+                                    <input type="text" name="cnic" id="edit_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" value="${beneficiary.cnic || ''}" ${beneficiaryRequiredFields.includes('cnic') ? 'required' : ''}>
+                                    <button type="button" class="btn btn-primary" id="edit_fetchBeneficiaryDetailsBtn" title="Fetch details from Wheat Distribution System">
+                                        <i class="ti-search"></i> Fetch Details
+                                    </button>
+                                </div>
+                                <small class="text-muted">Format: XXXXX-XXXXXXX-X</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Full Name <span class="text-danger" id="edit_full_nameRequired" style="display: ${beneficiaryRequiredFields.includes('full_name') ? 'inline' : 'none'};">*</span></label>
+                                <div class="position-relative">
+                                    <input type="text" name="full_name" id="edit_full_name" class="form-control" value="${beneficiary.full_name || ''}" ${beneficiaryRequiredFields.includes('full_name') ? 'required' : ''}>
+                                    <div id="edit_apiFullName" class="api-data-container" style="display: none;">
+                                        <div class="api-data-value"></div>
+                                        <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_full_name" title="Copy to form field">
+                                            <i class="ti-check"></i> Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Father/Husband Name <span class="text-danger" id="edit_father_husband_nameRequired" style="display: ${beneficiaryRequiredFields.includes('father_husband_name') ? 'inline' : 'none'};">*</span></label>
+                                <div class="position-relative">
+                                    <input type="text" name="father_husband_name" id="edit_father_husband_name" class="form-control" value="${beneficiary.father_husband_name || ''}" ${beneficiaryRequiredFields.includes('father_husband_name') ? 'required' : ''}>
+                                    <div id="edit_apiFatherHusbandName" class="api-data-container" style="display: none;">
+                                        <div class="api-data-value"></div>
+                                        <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_father_husband_name" title="Copy to form field">
+                                            <i class="ti-check"></i> Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Mobile Number <span class="text-danger" id="edit_mobile_numberRequired" style="display: ${beneficiaryRequiredFields.includes('mobile_number') ? 'inline' : 'none'};">*</span></label>
+                                <div class="position-relative">
+                                    <input type="text" name="mobile_number" id="edit_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" value="${beneficiary.mobile_number || ''}" ${beneficiaryRequiredFields.includes('mobile_number') ? 'required' : ''}>
+                                    <div id="edit_apiMobileNumber" class="api-data-container" style="display: none;">
+                                        <div class="api-data-value"></div>
+                                        <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_mobile_number" title="Copy to form field">
+                                            <i class="ti-check"></i> Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="text-muted">Format: 03XX-XXXXXXX</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Date of Birth <span class="text-danger" id="edit_date_of_birthRequired" style="display: ${beneficiaryRequiredFields.includes('date_of_birth') ? 'inline' : 'none'};">*</span></label>
+                                <div class="position-relative">
+                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" value="${dob}" ${beneficiaryRequiredFields.includes('date_of_birth') ? 'required' : ''}>
+                                    <div id="edit_apiDateOfBirth" class="api-data-container" style="display: none;">
+                                        <div class="api-data-value"></div>
+                                        <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_date_of_birth" title="Copy to form field">
+                                            <i class="ti-check"></i> Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                <div class="position-relative">
+                                    <select name="gender" id="edit_gender" class="form-control" required>
+                                        <option value="">Select Gender</option>
+                                        <option value="male" ${beneficiary.gender === 'male' ? 'selected' : ''}>Male</option>
+                                        <option value="female" ${beneficiary.gender === 'female' ? 'selected' : ''}>Female</option>
+                                        <option value="other" ${beneficiary.gender === 'other' ? 'selected' : ''}>Other</option>
+                                    </select>
+                                    <div id="edit_apiGender" class="api-data-container" style="display: none;">
+                                        <div class="api-data-value"></div>
+                                        <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_gender" data-is-select="true" title="Copy to form field">
+                                            <i class="ti-check"></i> Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            ${institutionalType === 'educational' ? `
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Class <span class="text-danger">*</span></label>
+                                <input type="text" name="class" id="edit_class" class="form-control" placeholder="e.g., 5th, 10th, 1st Year" value="${beneficiary.class || ''}" required>
+                            </div>
+                            ` : ''}
+                            <div class="col-md-6 mb-3" id="edit_amountDiv">
+                                <label class="form-label">Amount <span class="text-danger" id="edit_amountRequired" style="display: none;">*</span></label>
+                                <input type="number" name="amount" id="edit_amount" class="form-control" step="0.01" min="0" value="${beneficiary.amount || 0}" readonly>
+                                <small class="text-muted" id="edit_amountHint">Amount will be auto-filled from category</small>
+                            </div>
+                        </div>
+                        <div id="edit_representativeDiv" style="display: ${requiresRep ? 'block' : 'none'};">
+                            <hr>
+                            <h6>Representative Information</h6>
+                            <div class="alert alert-info mb-3" role="alert">
+                                <i class="ti-info-alt"></i> <strong>Note:</strong> For beneficiaries below 18 years, a representative (above 18) is required. You can fetch family members from the Wheat Distribution System or enter details manually.
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <button type="button" class="btn btn-primary btn-sm" id="edit_fetchFamilyMembersBtn" title="Fetch family members from Wheat Distribution System">
+                                        <i class="ti-search"></i> Fetch Family Members
+                                    </button>
+                                    <div id="edit_familyTreeContainer" style="display: none; margin-top: 15px;">
+                                        <label class="form-label mb-2"><strong>Select Family Member (Click on any node):</strong></label>
+                                        <div id="edit_familyTreeGrid" class="family-tree-grid"></div>
+                                        <small class="text-muted d-block mt-2">Click on any family member node to auto-fill representative details</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">CNIC <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input type="text" name="representative[cnic]" id="edit_rep_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" value="${beneficiary.representative?.cnic || ''}">
+                                        <button type="button" class="btn btn-primary" id="edit_fetchRepDetailsBtn" title="Fetch details from Wheat Distribution System">
+                                            <i class="ti-search"></i> Fetch Details
+                                        </button>
+                                    </div>
+                                    <div class="position-relative" style="margin-top: 5px;">
+                                        <div id="edit_apiRepCnic" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_cnic" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Format: XXXXX-XXXXXXX-X</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                    <div class="position-relative">
+                                        <input type="text" name="representative[full_name]" id="edit_rep_full_name" class="form-control" value="${beneficiary.representative?.full_name || ''}">
+                                        <div id="edit_apiRepFullName" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_full_name" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Father/Husband Name <span class="text-danger">*</span></label>
+                                    <div class="position-relative">
+                                        <input type="text" name="representative[father_husband_name]" id="edit_rep_father_husband_name" class="form-control" value="${beneficiary.representative?.father_husband_name || ''}">
+                                        <div id="edit_apiRepFatherHusbandName" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_father_husband_name" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Mobile Number</label>
+                                    <div class="position-relative">
+                                        <input type="text" name="representative[mobile_number]" id="edit_rep_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" value="${beneficiary.representative?.mobile_number || ''}">
+                                        <div id="edit_apiRepMobileNumber" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_mobile_number" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">Format: 03XX-XXXXXXX</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                                    <div class="position-relative">
+                                        <input type="date" name="representative[date_of_birth]" id="edit_rep_date_of_birth" class="form-control" value="${repDob}">
+                                        <div id="edit_apiRepDateOfBirth" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_date_of_birth" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Gender <span class="text-danger">*</span></label>
+                                    <div class="position-relative">
+                                        <select name="representative[gender]" id="edit_rep_gender" class="form-control">
+                                            <option value="">Select Gender</option>
+                                            <option value="male" ${beneficiary.representative?.gender === 'male' ? 'selected' : ''}>Male</option>
+                                            <option value="female" ${beneficiary.representative?.gender === 'female' ? 'selected' : ''}>Female</option>
+                                            <option value="other" ${beneficiary.representative?.gender === 'other' ? 'selected' : ''}>Other</option>
+                                        </select>
+                                        <div id="edit_apiRepGender" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_gender" data-is-select="true" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Relationship <span class="text-danger">*</span></label>
+                                    <div class="position-relative">
+                                        <input type="text" name="representative[relationship]" id="edit_rep_relationship" class="form-control" placeholder="e.g., Father, Mother, Brother" value="${beneficiary.representative?.relationship || ''}">
+                                        <div id="edit_apiRepRelationship" class="api-data-container" style="display: none;">
+                                            <div class="api-data-value"></div>
+                                            <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_rep_relationship" title="Copy to form field">
+                                                <i class="ti-check"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                `,
+                width: '900px',
+                showCancelButton: true,
+                confirmButtonText: 'Update',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#000000',
+                customClass: {
+                    cancelButton: 'btn btn-dark',
+                    confirmButton: 'btn btn-primary'
+                },
+                didOpen: () => {
+                    // Initialize custom select for LZC or Institution based on scheme type
+                    if (isInstitutional) {
+                        initCustomSelect('#edit_institution_select_display', '#edit_institution_select_dropdown', '#edit_institution_search_input', '#edit_institution_select_options', '#edit_institution_id');
+                        
+                        // Set initial selected value and display text for institution
+                        const institutionId = $('#edit_institution_id').val();
+                        if (institutionId) {
+                            const selectedOption = $('#edit_institution_select_options').find(`[data-value="${institutionId}"]`);
+                            if (selectedOption.length) {
+                                const selectedText = selectedOption.data('text');
+                                $('#edit_institution_select_display').find('.select-placeholder').text(selectedText).css('color', '#000');
+                                selectedOption.addClass('selected');
+                            }
+                        }
+                    } else {
+                        initCustomSelect('#edit_lzc_select_display', '#edit_lzc_select_dropdown', '#edit_lzc_search_input', '#edit_lzc_select_options', '#edit_local_zakat_committee_id');
+                        
+                        // Set initial selected value and display text for LZC
+                        const lzcId = $('#edit_local_zakat_committee_id').val();
+                        if (lzcId) {
+                            const selectedOption = $('#edit_lzc_select_options').find(`[data-value="${lzcId}"]`);
+                            if (selectedOption.length) {
+                                const selectedText = selectedOption.data('text');
+                                $('#edit_lzc_select_display').find('.select-placeholder').text(selectedText).css('color', '#000');
+                                selectedOption.addClass('selected');
+                            }
+                        }
+                    }
+
+                    if (beneficiary.scheme_id) {
+                        loadSchemeCategories(beneficiary.scheme_id, '#edit_scheme_category_id', '#edit_schemeCategoryDiv', beneficiary.scheme_category_id);
+                    }
+
+                    // Setup API handlers
+                    setupEditModalApiHandlers(beneficiary.id);
+                    
+                    // Check age and representative requirement on load
+                    checkAgeAndRequireRepresentativeEdit();
+                },
+                preConfirm: () => {
+                    const form = document.getElementById('editBeneficiaryForm');
+                    const formData = new FormData(form);
+                    const data = {};
+                    
+                    // Get scheme information
+                    const schemeId = $('#edit_scheme_id').val();
+                    const scheme = schemes.find(s => s.id == schemeId);
+                    const isInstitutional = scheme?.is_institutional || false;
+                    const institutionalType = scheme?.institutional_type || null;
+                    const allowsRepresentative = scheme?.allows_representative || false;
+                    
+                    // Calculate age first to determine if representative is required
+                    const dob = $('#edit_date_of_birth').val();
+                    let requiresRepresentative = 0;
+                    if (dob) {
+                        const birthDate = new Date(dob);
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const monthDiff = today.getMonth() - birthDate.getMonth();
+                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                            age--;
+                        }
+                        // Representative required only if age < 18 AND scheme allows representative
+                        requiresRepresentative = (age < 18 && allowsRepresentative) ? 1 : 0;
+                    }
+                    data.requires_representative = requiresRepresentative;
+                    
+                    // Add institution_id or local_zakat_committee_id based on scheme type
+                    if (isInstitutional) {
+                        const institutionId = $('#edit_institution_id').val();
+                        if (institutionId) {
+                            data.institution_id = institutionId;
+                        }
+                        // Add class for educational schemes
+                        if (institutionalType === 'educational') {
+                            const classValue = $('#edit_class').val();
+                            if (classValue) {
+                                data.class = classValue;
+                            }
+                        }
+                    } else {
+                        const lzcId = $('#edit_local_zakat_committee_id').val();
+                        if (lzcId) {
+                            data.local_zakat_committee_id = lzcId;
+                        }
+                    }
+                    
+                    for (let [key, value] of formData.entries()) {
+                        if (key.startsWith('representative[')) {
+                            if (requiresRepresentative) {
+                                const repKey = key.replace('representative[', '').replace(']', '');
+                                if (!data.representative) data.representative = {};
+                                data.representative[repKey] = value;
+                            }
+                        } else if (key !== 'beneficiary_id') {
+                            data[key] = value;
+                        }
+                    }
+                    
+                    // Validate representative fields if age < 18 AND scheme allows representative
+                    if (requiresRepresentative === 1) {
+                        if (!data.representative || !data.representative.cnic || data.representative.cnic === '') {
+                            Swal.showValidationMessage('Representative CNIC is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.full_name || data.representative.full_name === '') {
+                            Swal.showValidationMessage('Representative Full Name is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.father_husband_name || data.representative.father_husband_name === '') {
+                            Swal.showValidationMessage('Representative Father/Husband Name is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.date_of_birth || data.representative.date_of_birth === '') {
+                            Swal.showValidationMessage('Representative Date of Birth is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.gender || data.representative.gender === '') {
+                            Swal.showValidationMessage('Representative Gender is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.relationship || data.representative.relationship === '') {
+                            Swal.showValidationMessage('Representative Relationship is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        
+                        // Validate representative age (must be 18+)
+                        if (data.representative.date_of_birth) {
+                            const repBirthDate = new Date(data.representative.date_of_birth);
+                            const today = new Date();
+                            let repAge = today.getFullYear() - repBirthDate.getFullYear();
+                            const monthDiff = today.getMonth() - repBirthDate.getMonth();
+                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < repBirthDate.getDate())) {
+                                repAge--;
+                            }
+                            if (repAge < 18) {
+                                Swal.showValidationMessage('Representative must be 18 years or above. The provided representative is ' + repAge + ' years old.');
+                                return false;
+                            }
+                        }
+                    } else {
+                        // If age >= 18, ensure no representative data is sent
+                        delete data.representative;
+                    }
+                    
+                    // Validate LZC or Institution selection based on scheme type
+                    if (isInstitutional) {
+                        if (!data.institution_id || data.institution_id === '') {
+                            Swal.showValidationMessage('Please select an Institution.');
+                            return false;
+                        }
+                        // Validate class for educational schemes
+                        if (institutionalType === 'educational') {
+                            if (!data.class || data.class === '') {
+                                Swal.showValidationMessage('Please enter the class for educational beneficiaries.');
+                                return false;
+                            }
+                        }
+                    } else {
+                        if (!data.local_zakat_committee_id || data.local_zakat_committee_id === '') {
+                            Swal.showValidationMessage('Please select a Local Zakat Committee.');
+                            return false;
+                        }
+                    }
+
+                    return $.ajax({
+                        url: '<?php echo e(route("beneficiaries.update-ajax", ":id")); ?>'.replace(':id', beneficiary.id),
+                        type: 'POST',
+                        data: data,
+                        headers: {
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Success!',
+                                    text: response.message,
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                location.reload();
+                            }
+                        },
+                        error: function(xhr) {
+                            let errorMessage = 'An error occurred.';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage = xhr.responseJSON.message;
+                            } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                                const errors = Object.values(xhr.responseJSON.errors).flat();
+                                errorMessage = errors.join('<br>');
+                            }
+                            Swal.showValidationMessage(errorMessage);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Generic API Fetcher
+        function fetchApiData(url, cnic, successCallback, errorCallback, finalCallback) {
+            const apiBaseUrl = '<?php echo e(config("wheat_api.base_url", "http://localhost:8001/api")); ?>';
+            const apiToken = '<?php echo e(config("wheat_api.token", "")); ?>';
+            const apiUsername = '<?php echo e(config("wheat_api.username", "")); ?>';
+            const apiPassword = '<?php echo e(config("wheat_api.password", "")); ?>';
+
+            function makeApiCall(token) {
+                $.ajax({
+                    url: `${apiBaseUrl}${url}`,
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    data: JSON.stringify({ cnic: cnic }),
+                    contentType: 'application/json',
+                    success: successCallback,
+                    error: errorCallback,
+                    complete: finalCallback
+                });
+            }
+
+            if (apiToken) {
+                makeApiCall(apiToken);
+            } else {
+                if (!apiUsername || !apiPassword) {
+                    showCustomToast('warning', 'API Configuration Missing', 'Please configure WHEAT_API_USERNAME and WHEAT_API_PASSWORD in your .env file.');
+                    if (finalCallback) finalCallback();
+                    return;
+                }
+
+                $.ajax({
+                    url: `${apiBaseUrl}/external/auth/login`,
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    data: JSON.stringify({
+                        username: apiUsername,
+                        password: apiPassword
+                    }),
+                    contentType: 'application/json',
+                    success: function(loginResponse) {
+                        if (loginResponse.success && loginResponse.data && loginResponse.data.access_token) {
+                            makeApiCall(loginResponse.data.access_token);
+                        } else {
+                            showCustomToast('error', 'Authentication Failed', 'Failed to authenticate with Wheat Distribution API. Please verify your API credentials.');
+                            if (finalCallback) finalCallback();
+                        }
+                    },
+                    error: function(loginXhr) {
+                        let errorMessage = 'Failed to authenticate with Wheat Distribution API.';
+                        if (loginXhr.status === 401) {
+                            errorMessage = 'Invalid username or password. Please check your API credentials.';
+                        } else if (loginXhr.status === 0) {
+                            errorMessage = 'Unable to connect to the API server. Please check if the Wheat Distribution application is running.';
+                        }
+                        showCustomToast('error', 'Authentication Error', errorMessage);
+                        if (finalCallback) finalCallback();
+                    }
+                });
+            }
+        }
+
+        // Fetch Beneficiary Data for Edit
+        function fetchBeneficiaryDataForEdit(cnic, callback) {
+            fetchApiData(
+                '/external/zakat/member/lookup',
+                cnic,
+                function(response) {
+                    if (response.success && response.data) {
+                        displayBeneficiaryApiDataForEdit(response.data);
+                        showCustomToast('success', 'Member Found', 'Verified member data fetched. Review and copy to form fields.');
+                        checkAgeAndRequireRepresentativeForEdit();
+                    } else {
+                        showCustomToast('info', 'Member Not Found', response.message || 'Member with this CNIC was not found in the verified database. Please enter details manually.');
+                    }
+                },
+                function(xhr) {
+                    let errorTitle = 'API Error';
+                    let errorMessage = 'Failed to fetch member details.';
+                    let errorIcon = 'error';
+
+                    if (xhr.status === 401) {
+                        errorTitle = 'Authentication Failed';
+                        errorMessage = 'Authentication failed. Please check API credentials.';
+                    } else if (xhr.status === 404) {
+                        const response = xhr.responseJSON;
+                        if (response && response.error_code === 'MEMBER_NOT_FOUND') {
+                            errorTitle = 'Member Not Found';
+                            errorMessage = response.message || 'Member with this CNIC was not found in the verified database.';
+                            errorIcon = 'info';
+                        }
+                    } else if (xhr.status === 0) {
+                        errorTitle = 'Connection Error';
+                        errorMessage = 'Unable to connect to the API server. Please check if the Wheat Distribution application is running.';
+                    }
+                    showCustomToast(errorIcon === 'info' ? 'info' : 'error', errorTitle, errorMessage);
+                },
+                callback
+            );
+        }
+
+        // Display API Data for Edit Modal
+        function displayBeneficiaryApiDataForEdit(data) {
+            function showApiData(containerId, value, displayValue = null) {
+                if (value && value !== 'N/A' && value !== null && value !== '') {
+                    const container = $(`#edit_${containerId}`);
+                    const valueDiv = container.find('.api-data-value');
+                    const displayText = displayValue !== null ? displayValue : value;
+                    valueDiv.text(displayText);
+                    container.data('original-value', value);
+                    container.show();
+                }
+            }
+            
+            function formatDateForDisplay(dateString) {
+                if (!dateString) return null;
+                try {
+                    const date = new Date(dateString + 'T00:00:00');
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                    }
+                } catch (e) {
+                    return dateString;
+                }
+                return dateString;
+            }
+            
+            showApiData('apiFullName', data.full_name);
+            showApiData('apiFatherHusbandName', data.father_husband_name);
+            showApiData('apiMobileNumber', data.mobile_number);
+            showApiData('apiDateOfBirth', data.date_of_birth, formatDateForDisplay(data.date_of_birth));
+            showApiData('apiGender', data.gender);
+        }
+
+        // Fetch Representative Data for Edit
+        function fetchRepresentativeDataForEdit(cnic, callback) {
+            fetchApiData(
+                '/external/zakat/member/lookup',
+                cnic,
+                function(response) {
+                    if (response.success && response.data) {
+                        displayRepresentativeApiDataForEdit(response.data);
+                        showCustomToast('success', 'Representative Found', 'Verified representative data fetched. Review and copy to form fields.');
+                    } else {
+                        showCustomToast('info', 'Representative Not Found', response.message || 'Representative with this CNIC was not found in the verified database.');
+                    }
+                },
+                function(xhr) {
+                    let errorTitle = 'API Error';
+                    let errorMessage = 'Failed to fetch representative details.';
+                    let errorIcon = 'error';
+
+                    if (xhr.status === 401) {
+                        errorTitle = 'Authentication Failed';
+                        errorMessage = 'Authentication failed. Please check API credentials.';
+                    } else if (xhr.status === 404) {
+                        const response = xhr.responseJSON;
+                        if (response && response.error_code === 'MEMBER_NOT_FOUND') {
+                            errorTitle = 'Representative Not Found';
+                            errorMessage = response.message || 'Representative with this CNIC was not found in the verified database.';
+                            errorIcon = 'info';
+                        }
+                    } else if (xhr.status === 0) {
+                        errorTitle = 'Connection Error';
+                        errorMessage = 'Unable to connect to the API server. Please check if the Wheat Distribution application is running.';
+                    }
+                    showCustomToast(errorIcon === 'info' ? 'info' : 'error', errorTitle, errorMessage);
+                },
+                callback
+            );
+        }
+
+        // Display Representative API Data for Edit
+        function displayRepresentativeApiDataForEdit(data) {
+            function showApiData(containerId, value, displayValue = null) {
+                if (value && value !== 'N/A' && value !== null && value !== '') {
+                    const container = $(`#edit_${containerId}`);
+                    const valueDiv = container.find('.api-data-value');
+                    const displayText = displayValue !== null ? displayValue : value;
+                    valueDiv.text(displayText);
+                    container.data('original-value', value);
+                    container.show();
+                }
+            }
+            
+            function formatDateForDisplay(dateString) {
+                if (!dateString) return null;
+                try {
+                    const date = new Date(dateString + 'T00:00:00');
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                    }
+                } catch (e) {
+                    return dateString;
+                }
+                return dateString;
+            }
+            
+            showApiData('apiRepCnic', data.cnic);
+            showApiData('apiRepFullName', data.full_name);
+            showApiData('apiRepFatherHusbandName', data.father_husband_name);
+            showApiData('apiRepMobileNumber', data.mobile_number);
+            showApiData('apiRepDateOfBirth', data.date_of_birth, formatDateForDisplay(data.date_of_birth));
+            showApiData('apiRepGender', data.gender);
+            showApiData('apiRepRelationship', data.relationship);
+        }
+
+        // Fetch Family Members for Edit
+        function fetchFamilyMembersForEdit(beneficiaryCnic, callback) {
+            fetchApiData(
+                '/external/zakat/member/family-members',
+                beneficiaryCnic,
+                function(response) {
+                    if (response.success && response.data && response.data.length > 0) {
+                        displayFamilyTreeForEdit(response.data);
+                        $('#edit_familyTreeContainer').show();
+                        showCustomToast('success', 'Family Members Found', `Found ${response.data.length} eligible family member(s). Click on any node to auto-fill representative details.`);
+                    } else {
+                        $('#edit_familyTreeContainer').hide();
+                        showCustomToast('info', 'No Family Members Found', response.message || 'No eligible family members found (NADRA verified, above 18 years, and active). Please enter representative details manually.');
+                    }
+                },
+                function(xhr) {
+                    $('#edit_familyTreeContainer').hide();
+                    let errorTitle = 'API Error';
+                    let errorMessage = 'Failed to fetch family members.';
+                    let errorIcon = 'error';
+
+                    if (xhr.status === 401) {
+                        errorTitle = 'Authentication Failed';
+                        errorMessage = 'Authentication failed. Please check API credentials.';
+                    } else if (xhr.status === 404) {
+                        const response = xhr.responseJSON;
+                        if (response && response.error_code === 'MEMBER_NOT_FOUND') {
+                            errorTitle = 'Beneficiary Not Found';
+                            errorMessage = response.message || 'Beneficiary member not found in the system.';
+                            errorIcon = 'info';
+                        } else if (response && response.error_code === 'NO_HOUSEHOLD') {
+                            errorTitle = 'No Household';
+                            errorMessage = response.message || 'Beneficiary is not associated with any active household.';
+                            errorIcon = 'info';
+                        }
+                    } else if (xhr.status === 0) {
+                        errorTitle = 'Connection Error';
+                        errorMessage = 'Unable to connect to the API server. Please check if the Wheat Distribution application is running.';
+                    }
+                    showCustomToast(errorIcon === 'info' ? 'info' : 'error', errorTitle, errorMessage);
+                },
+                callback
+            );
+        }
+
+        // Display Family Tree for Edit
+        function displayFamilyTreeForEdit(familyMembers) {
+            const treeGrid = $('#edit_familyTreeGrid');
+            treeGrid.empty();
+
+            const headMember = familyMembers.find(m => m.relationship && m.relationship.toLowerCase() === 'head');
+            const otherMembers = familyMembers.filter(m => !m.relationship || m.relationship.toLowerCase() !== 'head');
+
+            const rootContainer = $('<div class="family-tree-root"></div>');
+            if (otherMembers.length > 0) {
+                rootContainer.addClass('has-children');
+            }
+
+            if (headMember) {
+                const headNode = createFamilyTreeNodeForEdit(headMember, true);
+                rootContainer.append(headNode);
+            }
+
+            if (otherMembers.length > 0) {
+                const childrenContainer = $('<div class="family-tree-children"></div>');
+                childrenContainer.addClass('has-children');
+
+                otherMembers.forEach(function(member) {
+                    const childNode = createFamilyTreeNodeForEdit(member, false);
+                    childrenContainer.append(childNode);
+                });
+
+                rootContainer.append(childrenContainer);
+            }
+
+            treeGrid.append(rootContainer);
+
+            const currentRepCnic = $('#edit_rep_cnic').val();
+            if (currentRepCnic) {
+                $(`[data-family-member*="${currentRepCnic}"]`).addClass('selected');
+            }
+        }
+
+        // Create Family Tree Node for Edit
+        function createFamilyTreeNodeForEdit(member, isRoot) {
+            const nodeClass = isRoot ? 'family-tree-node root-node' : 'family-tree-node child-node';
+            const relationshipBadge = member.relationship || 'Family Member';
+            const ageBadge = member.age ? `${member.age} yrs` : 'N/A';
+
+            const nodeHtml = `
+                <div class="${nodeClass}" data-family-member='${JSON.stringify(member)}'>
+                    <div class="family-tree-node-header">
+                        <h6 class="family-tree-node-name" title="${member.full_name || 'N/A'}">${member.full_name || 'N/A'}</h6>
+                        <span class="family-tree-node-relationship">${relationshipBadge}</span>
+                    </div>
+                    <div class="family-tree-node-age">Age: ${ageBadge}</div>
+                </div>
+            `;
+
+            return $(nodeHtml);
+        }
+
+        // Check age and show representative form for edit
+        function checkAgeAndRequireRepresentativeEdit() {
+            const dob = $('#edit_date_of_birth').val();
+            // Get scheme from the schemes array
+            const schemeId = $('#edit_scheme_id').val();
+            const scheme = schemes.find(s => s.id == schemeId);
+            const allowsRepresentative = scheme?.allows_representative || false;
+            const hasAgeRestriction = scheme?.has_age_restriction || false;
+            const minimumAge = scheme?.minimum_age || 0;
+            
+            if (dob) {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                
+                // Check scheme settings
+                if (age < 18) {
+                    // Check if scheme allows representative
+                    if (!allowsRepresentative) {
+                        // If scheme has age restriction and doesn't allow representative, < 18 beneficiaries are not eligible
+                        if (hasAgeRestriction && minimumAge >= 18) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Not Eligible',
+                                text: 'This scheme has age restriction (minimum age: ' + minimumAge + ') and does not allow representatives. Beneficiaries below 18 years are not eligible for this scheme.',
+                            });
+                            $('#edit_date_of_birth').val(dob);
+                            $('#edit_representativeDiv').hide();
+                            // Remove required from representative fields
+                            $('#edit_rep_cnic').prop('required', false);
+                            $('#edit_rep_full_name').prop('required', false);
+                            $('#edit_rep_father_husband_name').prop('required', false);
+                            $('#edit_rep_date_of_birth').prop('required', false);
+                            $('#edit_rep_gender').prop('required', false);
+                            $('#edit_rep_relationship').prop('required', false);
+                            return;
+                        }
+                        // If no age restriction or minimum age < 18, just hide representative section
+                        $('#edit_representativeDiv').hide();
+                        // Remove required from representative fields
+                        $('#edit_rep_cnic').prop('required', false);
+                        $('#edit_rep_full_name').prop('required', false);
+                        $('#edit_rep_father_husband_name').prop('required', false);
+                        $('#edit_rep_date_of_birth').prop('required', false);
+                        $('#edit_rep_gender').prop('required', false);
+                        $('#edit_rep_relationship').prop('required', false);
+                    } else {
+                        // Scheme allows representative - show representative section and make fields required
+                        $('#edit_representativeDiv').slideDown();
+                        
+                        // Make representative fields required
+                        $('#edit_rep_cnic').prop('required', true);
+                        $('#edit_rep_full_name').prop('required', true);
+                        $('#edit_rep_father_husband_name').prop('required', true);
+                        $('#edit_rep_date_of_birth').prop('required', true);
+                        $('#edit_rep_gender').prop('required', true);
+                        $('#edit_rep_relationship').prop('required', true);
+                    }
+                } else {
+                    // Age is 18 or above - hide representative section and remove required
+                    $('#edit_representativeDiv').slideUp();
+                    
+                    // Remove required from representative fields
+                    $('#edit_rep_cnic').prop('required', false);
+                    $('#edit_rep_full_name').prop('required', false);
+                    $('#edit_rep_father_husband_name').prop('required', false);
+                    $('#edit_rep_date_of_birth').prop('required', false);
+                    $('#edit_rep_gender').prop('required', false);
+                    $('#edit_rep_relationship').prop('required', false);
+                    
+                    // Clear representative fields
+                    $('#edit_rep_cnic').val('');
+                    $('#edit_rep_full_name').val('');
+                    $('#edit_rep_father_husband_name').val('');
+                    $('#edit_rep_mobile_number').val('');
+                    $('#edit_rep_date_of_birth').val('');
+                    $('#edit_rep_gender').val('');
+                    $('#edit_rep_relationship').val('');
+                }
+            } else {
+                // No date of birth - hide representative section
+                $('#edit_representativeDiv').hide();
+                
+                // Remove required from representative fields
+                $('#edit_rep_cnic').prop('required', false);
+                $('#edit_rep_full_name').prop('required', false);
+                $('#edit_rep_father_husband_name').prop('required', false);
+                $('#edit_rep_date_of_birth').prop('required', false);
+                $('#edit_rep_gender').prop('required', false);
+                $('#edit_rep_relationship').prop('required', false);
+            }
+        }
+
+        // Setup API handlers for edit modal
+        function setupEditModalApiHandlers(beneficiaryId) {
+            $(document).off('click', '#edit_fetchBeneficiaryDetailsBtn').on('click', '#edit_fetchBeneficiaryDetailsBtn', function() {
+                const fetchBtn = $(this);
+                const originalHtml = fetchBtn.html();
+                fetchBtn.prop('disabled', true).html('<i class="ti-reload"></i> Fetching...');
+                
+                const cnic = $('#edit_cnic').val().trim();
+                if (!cnic) {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                    showCustomToast('warning', 'CNIC Required', 'Please enter beneficiary CNIC first.');
+                    return;
+                }
+                
+                const cnicDigits = cnic.replace(/\D/g, '');
+                if (cnicDigits.length !== 13) {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                    showCustomToast('warning', 'Invalid CNIC', 'Please enter a valid CNIC (13 digits).');
+                    return;
+                }
+                
+                fetchBeneficiaryDataForEdit(cnic, function() {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                });
+            });
+
+            $(document).off('click', '#edit_fetchRepDetailsBtn').on('click', '#edit_fetchRepDetailsBtn', function() {
+                const fetchBtn = $(this);
+                const originalHtml = fetchBtn.html();
+                fetchBtn.prop('disabled', true).html('<i class="ti-reload"></i> Fetching...');
+                
+                const cnic = $('#edit_rep_cnic').val().trim();
+                if (!cnic) {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                    showCustomToast('warning', 'CNIC Required', 'Please enter representative CNIC first.');
+                    return;
+                }
+                
+                const cnicDigits = cnic.replace(/\D/g, '');
+                if (cnicDigits.length !== 13) {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                    showCustomToast('warning', 'Invalid CNIC', 'Please enter a valid CNIC (13 digits).');
+                    return;
+                }
+                
+                fetchRepresentativeDataForEdit(cnic, function() {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                });
+            });
+
+            $(document).off('click', '#edit_fetchFamilyMembersBtn').on('click', '#edit_fetchFamilyMembersBtn', function() {
+                const fetchBtn = $(this);
+                const originalHtml = fetchBtn.html();
+                fetchBtn.prop('disabled', true).html('<i class="ti-reload"></i> Fetching...');
+                
+                const beneficiaryCnic = $('#edit_cnic').val().trim();
+                if (!beneficiaryCnic) {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                    showCustomToast('warning', 'Beneficiary CNIC Required', 'Please enter beneficiary CNIC first.');
+                    return;
+                }
+                
+                const cnicDigits = beneficiaryCnic.replace(/\D/g, '');
+                if (cnicDigits.length !== 13) {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                    showCustomToast('warning', 'Invalid CNIC', 'Please enter a valid beneficiary CNIC (13 digits).');
+                    return;
+                }
+                
+                fetchFamilyMembersForEdit(beneficiaryCnic, function() {
+                    fetchBtn.prop('disabled', false).html(originalHtml);
+                });
+            });
+
+            $(document).off('click', '#edit_familyTreeGrid .family-tree-node').on('click', '#edit_familyTreeGrid .family-tree-node', function() {
+                $('#edit_familyTreeGrid .family-tree-node').removeClass('selected');
+                $(this).addClass('selected');
+
+                const familyMember = $(this).data('family-member');
+                if (!familyMember) {
+                    return;
+                }
+
+                $('#edit_rep_cnic').val(familyMember.cnic);
+                $('#edit_rep_full_name').val(familyMember.full_name);
+                $('#edit_rep_father_husband_name').val(familyMember.father_husband_name);
+                $('#edit_rep_mobile_number').val(familyMember.mobile_number || '');
+                $('#edit_rep_date_of_birth').val(familyMember.date_of_birth || '');
+
+                const genderMap = { 'Male': 'male', 'Female': 'female', 'Other': 'other' };
+                const genderValue = genderMap[familyMember.gender] || (familyMember.gender ? familyMember.gender.toLowerCase() : '');
+                $('#edit_rep_gender').val(genderValue).trigger('change');
+
+                $('#edit_rep_relationship').val(familyMember.relationship || '');
+
+                if ($('#edit_rep_cnic').val()) {
+                    $('#edit_rep_cnic').val(formatCNIC($('#edit_rep_cnic').val()));
+                }
+                if ($('#edit_rep_mobile_number').val()) {
+                    $('#edit_rep_mobile_number').val(formatMobileNumber($('#edit_rep_mobile_number').val()));
+                }
+
+                showCustomToast('success', 'Family Member Selected', 'Representative details have been auto-filled from the selected family member.');
+            });
+
+            $(document).off('click', '.api-copy-btn').on('click', '.api-copy-btn', function() {
+                const targetId = $(this).data('target');
+                const container = $(this).closest('.api-data-container');
+                const value = container.data('original-value');
+                const isSelect = $(this).data('is-select') === true;
+                
+                if (value) {
+                    if (isSelect) {
+                        $(`#${targetId}`).val(value.toLowerCase()).trigger('change');
+                    } else {
+                        $(`#${targetId}`).val(value);
+                        if (targetId === 'edit_date_of_birth') {
+                            checkAgeAndRequireRepresentativeForEdit();
+                        }
+                    }
+                    showCustomToast('success', 'Copied', 'Data copied to form field.');
+                }
+            });
+
+            $('#edit_date_of_birth').off('change').on('change', function() {
+                checkAgeAndRequireRepresentativeEdit();
+            });
+            
+            // Also check on input (for manual typing)
+            $('#edit_date_of_birth').off('input').on('input', checkAgeAndRequireRepresentativeEdit);
+
+            $('#edit_scheme_category_id').off('change').on('change', function() {
+                const selectedOption = $(this).find('option:selected');
+                const amount = selectedOption.data('amount');
+                if (amount) {
+                    $('#edit_amount').val(amount);
+                }
+            });
+
+            // CNIC and mobile formatting
+            $('#edit_cnic').off('input').on('input', function() {
+                $(this).val(formatCNIC($(this).val()));
+            });
+            $('#edit_rep_cnic').off('input').on('input', function() {
+                $(this).val(formatCNIC($(this).val()));
+            });
+            $('#edit_mobile_number').off('input').on('input', function() {
+                $(this).val(formatMobileNumber($(this).val()));
+            });
+            $('#edit_rep_mobile_number').off('input').on('input', function() {
+                $(this).val(formatMobileNumber($(this).val()));
+            });
+        }
+
+        // Verify Beneficiary Button Click
+        $(document).on('click', '.verifyBeneficiaryBtn', function() {
+            const beneficiaryId = $(this).data('beneficiary-id');
+            verifyBeneficiary(beneficiaryId);
+        });
+
+        function verifyBeneficiary(beneficiaryId) {
+            $.ajax({
+                url: '<?php echo e(route("beneficiaries.get-details", ":id")); ?>'.replace(':id', beneficiaryId),
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const b = response.beneficiary;
+                        showVerifyBeneficiaryModal(b);
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Failed to load beneficiary details.'
+                        });
+                    }
+                },
+                error: function() {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to load beneficiary details.'
+                    });
+                }
+            });
+        }
+
+        function showVerifyBeneficiaryModal(beneficiary) {
+            const dob = beneficiary.date_of_birth || 'N/A';
+            const repDob = beneficiary.representative?.date_of_birth || 'N/A';
+            
+            let repHtml = '';
+            if (beneficiary.representative) {
+                const repCnic = beneficiary.representative.cnic || '';
+                const repCnicDigits = repCnic.replace(/\D/g, '');
+                const showRepFetchBtn = repCnicDigits.length === 13;
+                
+                repHtml = `
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Representative Information</h6>
+                        ${showRepFetchBtn ? `
+                            <button type="button" class="btn btn-sm btn-primary" id="verify_fetchRepDetailsBtn" title="Fetch representative details from Wheat Distribution System">
+                                <i class="ti-search"></i> Fetch API Details
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <strong>CNIC:</strong> 
+                            <span id="verify_rep_cnic">${beneficiary.representative.cnic || 'N/A'}</span>
+                            <div id="verify_apiRepCnic" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Full Name:</strong> 
+                            <span id="verify_rep_full_name">${beneficiary.representative.full_name || 'N/A'}</span>
+                            <div id="verify_apiRepFullName" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Father/Husband Name:</strong> 
+                            <span id="verify_rep_father_husband_name">${beneficiary.representative.father_husband_name || 'N/A'}</span>
+                            <div id="verify_apiRepFatherHusbandName" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Mobile Number:</strong> 
+                            <span id="verify_rep_mobile_number">${beneficiary.representative.mobile_number || 'N/A'}</span>
+                            <div id="verify_apiRepMobileNumber" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Date of Birth:</strong> 
+                            <span id="verify_rep_date_of_birth">${repDob}</span>
+                            <div id="verify_apiRepDateOfBirth" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Gender:</strong> 
+                            <span id="verify_rep_gender">${beneficiary.representative.gender || 'N/A'}</span>
+                            <div id="verify_apiRepGender" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <strong>Relationship:</strong> 
+                            <span id="verify_rep_relationship">${beneficiary.representative.relationship || 'N/A'}</span>
+                            <div id="verify_apiRepRelationship" class="api-data-container" style="display: none; margin-top: 5px;">
+                                <div class="api-data-value"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            Swal.fire({
+                title: 'Verify & Submit Beneficiary',
+                html: `
+                    <form id="verifyBeneficiaryForm" style="text-align: left;">
+                        <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">Beneficiary Details</h6>
+                                <button type="button" class="btn btn-sm btn-primary" id="verify_fetchBeneficiaryDetailsBtn" title="Fetch details from Wheat Distribution System">
+                                    <i class="ti-search"></i> Fetch API Details
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-2">
+                                        <strong>CNIC:</strong> 
+                                        <span id="verify_cnic">${beneficiary.cnic || 'N/A'}</span>
+                                        <div id="verify_apiCnic" class="api-data-container" style="display: none; margin-top: 5px;">
+                                            <div class="api-data-value"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Full Name:</strong> 
+                                        <span id="verify_full_name">${beneficiary.full_name || 'N/A'}</span>
+                                        <div id="verify_apiFullName" class="api-data-container" style="display: none; margin-top: 5px;">
+                                            <div class="api-data-value"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Father/Husband Name:</strong> 
+                                        <span id="verify_father_husband_name">${beneficiary.father_husband_name || 'N/A'}</span>
+                                        <div id="verify_apiFatherHusbandName" class="api-data-container" style="display: none; margin-top: 5px;">
+                                            <div class="api-data-value"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Mobile Number:</strong> 
+                                        <span id="verify_mobile_number">${beneficiary.mobile_number || 'N/A'}</span>
+                                        <div id="verify_apiMobileNumber" class="api-data-container" style="display: none; margin-top: 5px;">
+                                            <div class="api-data-value"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Date of Birth:</strong> 
+                                        <span id="verify_date_of_birth">${dob}</span>
+                                        <div id="verify_apiDateOfBirth" class="api-data-container" style="display: none; margin-top: 5px;">
+                                            <div class="api-data-value"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Gender:</strong> 
+                                        <span id="verify_gender">${beneficiary.gender || 'N/A'}</span>
+                                        <div id="verify_apiGender" class="api-data-container" style="display: none; margin-top: 5px;">
+                                            <div class="api-data-value"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Scheme:</strong> ${beneficiary.scheme_name || 'N/A'}
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Category:</strong> ${beneficiary.scheme_category_name || 'N/A'}
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Local Zakat Committee:</strong> ${beneficiary.local_zakat_committee_name || 'N/A'}
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Amount:</strong> Rs. ${parseFloat(beneficiary.amount || 0).toFixed(2)}
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Status:</strong> <span class="badge bg-${getStatusColor(beneficiary.status)}">${beneficiary.status || 'N/A'}</span>
+                                    </div>
+                                    <div class="col-md-6 mb-2">
+                                        <strong>Representative Required:</strong> ${beneficiary.requires_representative ? 'Yes (Age < 18)' : 'No (Age ≥ 18)'}
+                                    </div>
+                                </div>
+                                ${repHtml}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><strong><?php echo e(auth()->user()->isInstitutionUser() ? 'Remarks' : 'District Remarks'); ?></strong></label>
+                            <textarea name="district_remarks" id="verify_district_remarks" class="form-control" rows="3" placeholder="Enter any remarks or observations after comparing with API data...">${beneficiary.district_remarks || ''}</textarea>
+                            <small class="text-muted">Add any remarks or observations after comparing the beneficiary data with the API data.</small>
+                        </div>
+                    </form>
+                `,
+                width: '900px',
+                showCancelButton: true,
+                confirmButtonText: 'Submit',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#000000',
+                customClass: {
+                    cancelButton: 'btn btn-dark',
+                    confirmButton: 'btn btn-primary'
+                },
+                didOpen: () => {
+                    $(document).off('click', '#verify_fetchBeneficiaryDetailsBtn').on('click', '#verify_fetchBeneficiaryDetailsBtn', function() {
+                        const fetchBtn = $(this);
+                        const originalHtml = fetchBtn.html();
+                        fetchBtn.prop('disabled', true).html('<i class="ti-reload"></i> Fetching...');
+                        
+                        const cnic = $('#verify_cnic').text().trim();
+                        if (!cnic || cnic === 'N/A') {
+                            fetchBtn.prop('disabled', false).html(originalHtml);
+                            showCustomToast('warning', 'CNIC Required', 'Beneficiary CNIC is required to fetch API data.');
+                            return;
+                        }
+                        
+                        const cnicDigits = cnic.replace(/\D/g, '');
+                        if (cnicDigits.length !== 13) {
+                            fetchBtn.prop('disabled', false).html(originalHtml);
+                            showCustomToast('warning', 'Invalid CNIC', 'Please ensure beneficiary has a valid CNIC (13 digits).');
+                            return;
+                        }
+                        
+                        fetchBeneficiaryDataForVerify(cnic, beneficiary.id, function() {
+                            fetchBtn.prop('disabled', false).html(originalHtml);
+                        });
+                    });
+
+                    if (beneficiary.representative && beneficiary.representative.cnic) {
+                        const repCnic = beneficiary.representative.cnic;
+                        const repCnicDigits = repCnic.replace(/\D/g, '');
+                        if (repCnicDigits.length === 13) {
+                            $(document).off('click', '#verify_fetchRepDetailsBtn').on('click', '#verify_fetchRepDetailsBtn', function() {
+                                const fetchBtn = $(this);
+                                const originalHtml = fetchBtn.html();
+                                fetchBtn.prop('disabled', true).html('<i class="ti-reload"></i> Fetching...');
+                                
+                                fetchRepresentativeDataForVerify(repCnic, function() {
+                                    fetchBtn.prop('disabled', false).html(originalHtml);
+                                });
+                            });
+                        }
+                    }
+                },
+                preConfirm: () => {
+                    const remarks = $('#verify_district_remarks').val();
+                    return $.ajax({
+                        url: '<?php echo e(route("beneficiaries.verify-ajax", ":id")); ?>'.replace(':id', beneficiary.id),
+                        type: 'POST',
+                        data: {
+                            action: 'submit',
+                            district_remarks: remarks
+                        },
+                        headers: {
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Success!',
+                                    text: response.message,
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                location.reload();
+                            }
+                        },
+                        error: function(xhr) {
+                            let errorMessage = 'Failed to submit beneficiary.';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage = xhr.responseJSON.message;
+                            }
+                            Swal.showValidationMessage(errorMessage);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Fetch beneficiary data for verify modal
+        function fetchBeneficiaryDataForVerify(cnic, beneficiaryId, callback) {
+            fetchApiData(
+                '/external/zakat/member/lookup',
+                cnic,
+                function(response) {
+                    if (response.success && response.data) {
+                        displayApiDataForVerify(response.data, '');
+                        showCustomToast('success', 'API Data Fetched', 'Verified member data fetched. Compare with beneficiary details above.');
+                    } else {
+                        showCustomToast('info', 'Member Not Found', response.message || 'Member with this CNIC was not found in the verified database.');
+                    }
+                },
+                function(xhr) {
+                    let errorTitle = 'API Error';
+                    let errorMessage = 'Failed to fetch member details.';
+                    let errorIcon = 'error';
+
+                    if (xhr.status === 401) {
+                        errorTitle = 'Authentication Failed';
+                        errorMessage = 'Authentication failed. Please check API credentials.';
+                    } else if (xhr.status === 404) {
+                        const response = xhr.responseJSON;
+                        if (response && response.error_code === 'MEMBER_NOT_FOUND') {
+                            errorTitle = 'Member Not Found';
+                            errorMessage = response.message || 'Member with this CNIC was not found in the verified database.';
+                            errorIcon = 'info';
+                        }
+                    } else if (xhr.status === 0) {
+                        errorTitle = 'Connection Error';
+                        errorMessage = 'Unable to connect to the API server. Please check if the Wheat Distribution application is running.';
+                    }
+                    showCustomToast(errorIcon === 'info' ? 'info' : 'error', errorTitle, errorMessage);
+                },
+                callback
+            );
+        }
+
+        // Display API data for verify modal
+        function displayApiDataForVerify(data, prefix = '') {
+            function showApiData(containerId, value, displayValue = null) {
+                if (value && value !== 'N/A' && value !== null && value !== '') {
+                    const container = $(`#verify_${containerId}`);
+                    const valueDiv = container.find('.api-data-value');
+                    const displayText = displayValue !== null ? displayValue : value;
+                    valueDiv.text(`API: ${displayText}`);
+                    container.data('original-value', value);
+                    container.show();
+                }
+            }
+            
+            function formatDateForDisplay(dateString) {
+                if (!dateString) return null;
+                try {
+                    const date = new Date(dateString + 'T00:00:00');
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                    }
+                } catch (e) {
+                    return dateString;
+                }
+                return dateString;
+            }
+            
+            showApiData('apiCnic', data.cnic);
+            showApiData('apiFullName', data.full_name);
+            showApiData('apiFatherHusbandName', data.father_husband_name);
+            showApiData('apiMobileNumber', data.mobile_number);
+            showApiData('apiDateOfBirth', data.date_of_birth, formatDateForDisplay(data.date_of_birth));
+            showApiData('apiGender', data.gender);
+        }
+
+        // Fetch representative data for verify modal
+        function fetchRepresentativeDataForVerify(cnic, callback) {
+            fetchApiData(
+                '/external/zakat/member/lookup',
+                cnic,
+                function(response) {
+                    if (response.success && response.data) {
+                        displayRepresentativeApiDataForVerify(response.data);
+                        showCustomToast('success', 'API Data Fetched', 'Verified representative data fetched. Compare with representative details above.');
+                    } else {
+                        showCustomToast('info', 'Member Not Found', response.message || 'Representative with this CNIC was not found in the verified database.');
+                    }
+                },
+                function(xhr) {
+                    let errorTitle = 'API Error';
+                    let errorMessage = 'Failed to fetch representative details.';
+                    let errorIcon = 'error';
+
+                    if (xhr.status === 401) {
+                        errorTitle = 'Authentication Failed';
+                        errorMessage = 'Authentication failed. Please check API credentials.';
+                    } else if (xhr.status === 404) {
+                        const response = xhr.responseJSON;
+                        if (response && response.error_code === 'MEMBER_NOT_FOUND') {
+                            errorTitle = 'Member Not Found';
+                            errorMessage = response.message || 'Representative with this CNIC was not found in the verified database.';
+                            errorIcon = 'info';
+                        }
+                    } else if (xhr.status === 0) {
+                        errorTitle = 'Connection Error';
+                        errorMessage = 'Unable to connect to the API server. Please check if the Wheat Distribution application is running.';
+                    }
+                    showCustomToast(errorIcon === 'info' ? 'info' : 'error', errorTitle, errorMessage);
+                },
+                callback
+            );
+        }
+
+        // Display representative API data for verify modal
+        function displayRepresentativeApiDataForVerify(data) {
+            function showApiData(containerId, value, displayValue = null) {
+                if (value && value !== 'N/A' && value !== null && value !== '') {
+                    const container = $(`#verify_${containerId}`);
+                    const valueDiv = container.find('.api-data-value');
+                    const displayText = displayValue !== null ? displayValue : value;
+                    valueDiv.text(`API: ${displayText}`);
+                    container.data('original-value', value);
+                    container.show();
+                }
+            }
+            
+            function formatDateForDisplay(dateString) {
+                if (!dateString) return null;
+                try {
+                    const date = new Date(dateString + 'T00:00:00');
+                    if (!isNaN(date.getTime())) {
+                        return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                    }
+                } catch (e) {
+                    return dateString;
+                }
+                return dateString;
+            }
+            
+            showApiData('apiRepCnic', data.cnic);
+            showApiData('apiRepFullName', data.full_name);
+            showApiData('apiRepFatherHusbandName', data.father_husband_name);
+            showApiData('apiRepMobileNumber', data.mobile_number);
+            showApiData('apiRepDateOfBirth', data.date_of_birth, formatDateForDisplay(data.date_of_birth));
+            showApiData('apiRepGender', data.gender);
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'pending': 'warning',
+                'submitted': 'info',
+                'approved': 'success',
+                'rejected': 'danger',
+                'paid': 'primary'
+            };
+            return colors[status] || 'secondary';
+        }
+
+        // View Beneficiary Button Click
+        $(document).on('click', '.viewBeneficiaryBtn', function() {
+            const beneficiaryId = $(this).data('beneficiary-id');
+            viewBeneficiary(beneficiaryId);
+        });
+
+        function viewBeneficiary(beneficiaryId) {
+            $.ajax({
+                url: '<?php echo e(route("beneficiaries.get-details", ":id")); ?>'.replace(':id', beneficiaryId),
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const b = response.beneficiary;
+                        let repHtml = '';
+                        if (b.representative) {
+                            repHtml = `
+                                <hr>
+                                <h6>Representative Information</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-2"><strong>CNIC:</strong> ${b.representative.cnic || 'N/A'}</div>
+                                    <div class="col-md-6 mb-2"><strong>Full Name:</strong> ${b.representative.full_name || 'N/A'}</div>
+                                    <div class="col-md-6 mb-2"><strong>Father/Husband Name:</strong> ${b.representative.father_husband_name || 'N/A'}</div>
+                                    <div class="col-md-6 mb-2"><strong>Mobile Number:</strong> ${b.representative.mobile_number || 'N/A'}</div>
+                                    <div class="col-md-6 mb-2"><strong>Date of Birth:</strong> ${b.representative.date_of_birth || 'N/A'}</div>
+                                    <div class="col-md-6 mb-2"><strong>Gender:</strong> ${b.representative.gender || 'N/A'}</div>
+                                    <div class="col-md-6 mb-2"><strong>Relationship:</strong> ${b.representative.relationship || 'N/A'}</div>
+                                </div>
+                            `;
+                        }
+
+                        Swal.fire({
+                            title: 'Beneficiary Details',
+                            html: `
+                                <div style="text-align: left;">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2"><strong>CNIC:</strong> ${b.cnic || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Full Name:</strong> ${b.full_name || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Father/Husband Name:</strong> ${b.father_husband_name || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Mobile Number:</strong> ${b.mobile_number || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Date of Birth:</strong> ${b.date_of_birth || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Gender:</strong> ${b.gender || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Scheme:</strong> ${b.scheme_name || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Category:</strong> ${b.scheme_category_name || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Local Zakat Committee:</strong> ${b.local_zakat_committee_name || 'N/A'}</div>
+                                        <div class="col-md-6 mb-2"><strong>Amount:</strong> Rs. ${parseFloat(b.amount || 0).toFixed(2)}</div>
+                                        <div class="col-md-6 mb-2"><strong>Status:</strong> <span class="badge bg-${getStatusColor(b.status)}">${b.status || 'N/A'}</span></div>
+                                        <div class="col-md-12 mb-2"><strong>Representative Required:</strong> ${b.requires_representative ? 'Yes (Age < 18)' : 'No (Age ≥ 18)'}</div>
+                                        ${b.district_remarks ? `<div class="col-md-12 mb-2"><strong><?php echo e(auth()->user()->isInstitutionUser() ? 'Remarks' : 'District Remarks'); ?>:</strong> ${b.district_remarks}</div>` : ''}
+                                        ${b.admin_remarks ? `<div class="col-md-12 mb-2"><strong>Admin Remarks:</strong> ${b.admin_remarks}</div>` : ''}
+                                        ${b.rejection_remarks ? `<div class="col-md-12 mb-2"><strong>Rejection Remarks:</strong> ${b.rejection_remarks}</div>` : ''}
+                                    </div>
+                                    ${repHtml}
+                                </div>
+                            `,
+                            width: '700px',
+                            confirmButtonText: 'Close',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    }
+                },
+                error: function() {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to load beneficiary details.'
+                    });
+                }
+            });
+        }
+
+        // Delete Beneficiary Button Click
+        $(document).on('click', '.deleteBeneficiaryBtn', function() {
+            const beneficiaryId = $(this).data('beneficiary-id');
+            const beneficiaryName = $(this).data('beneficiary-name');
+            deleteBeneficiary(beneficiaryId, beneficiaryName);
+        });
+
+        function deleteBeneficiary(beneficiaryId, beneficiaryName) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: `Do you want to delete beneficiary: ${beneficiaryName}?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#000000',
+                cancelButtonText: 'Cancel',
+                confirmButtonText: 'Yes, delete it!',
+                customClass: {
+                    cancelButton: 'btn btn-dark',
+                    confirmButton: 'btn btn-primary'
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '<?php echo e(route("beneficiaries.delete-ajax", ":id")); ?>'.replace(':id', beneficiaryId),
+                        type: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Deleted!',
+                                    text: response.message,
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                                location.reload();
+                            }
+                        },
+                        error: function(xhr) {
+                            let errorMessage = 'Failed to delete beneficiary.';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage = xhr.responseJSON.message;
+                            }
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: errorMessage
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    });
+</script>
+<?php $__env->stopPush(); ?>
+<?php $__env->stopSection(); ?>
+
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH D:\php_projects_new\zakat_beneficiaries\laravel_project\resources\views/beneficiaries/index.blade.php ENDPATH**/ ?>

@@ -93,7 +93,7 @@ class LocalZakatCommitteeController extends Controller
         $unionCouncils = UnionCouncil::where('is_active', true)->with('tehsil.district')->get();
         $villages = Village::where('is_active', true)->with('unionCouncil.tehsil.district')->get();
         
-        // Get unique genders, verification statuses, and statuses from members for filtering
+        // Get unique genders, verification statuses, statuses, and designations from members for filtering
         $members = $localZakatCommittee->members;
         $uniqueGenders = $members->pluck('gender')->filter()->map(function($gender) {
             return is_string($gender) ? strtolower(trim($gender)) : '';
@@ -102,6 +102,7 @@ class LocalZakatCommitteeController extends Controller
         $uniqueStatuses = $members->map(function($member) {
             return $member->is_active ? 'active' : 'inactive';
         })->unique()->sort()->values();
+        $uniqueDesignations = $members->pluck('designation')->filter()->unique()->sort()->values();
         
         return view('local-zakat-committees.show', compact(
             'localZakatCommittee', 
@@ -112,7 +113,8 @@ class LocalZakatCommitteeController extends Controller
             'villages',
             'uniqueGenders',
             'uniqueVerificationStatuses',
-            'uniqueStatuses'
+            'uniqueStatuses',
+            'uniqueDesignations'
         ));
     }
 

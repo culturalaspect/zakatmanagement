@@ -150,13 +150,33 @@ class AdminHQController extends Controller
         $request->validate([
             'admin_remarks' => 'nullable|string',
         ]);
+        
+        // Ensure scheme relationship is loaded so we can check if it's institutional
+        $beneficiary->loadMissing('scheme');
 
-        $beneficiary->update([
-            'status' => 'approved',
-            'approved_by' => auth()->id(),
-            'approved_at' => now(),
+        $isInstitutional = $beneficiary->scheme && $beneficiary->scheme->is_institutional;
+
+        // Base update data for both normal and institutional schemes
+        $updateData = [
+            'approved_by'   => auth()->id(),
+            'approved_at'   => now(),
             'admin_remarks' => $request->admin_remarks,
-        ]);
+        ];
+
+        if ($isInstitutional) {
+            // For institutional schemes, once approved by Admin HQ, they are considered PAID
+            // because payments are handled directly by institutions, not via JazzCash.
+            $updateData['status'] = 'paid';
+            // Mark payment as received immediately
+            $updateData['payment_received_at'] = now();
+            // Optional marker so we can distinguish from JazzCash-paid cases
+            $updateData['jazzcash_status'] = 'INSTITUTIONAL';
+        } else {
+            // For non-institutional schemes, keep the normal flow (approved -> paid via JazzCash)
+            $updateData['status'] = 'approved';
+        }
+
+        $beneficiary->update($updateData);
 
         // Create notification
         if ($beneficiary->submittedBy) {
@@ -220,6 +240,70 @@ class AdminHQController extends Controller
         $redirectTo = $request->get('redirect_to', route('beneficiaries.show', $beneficiary));
         return redirect($redirectTo)
             ->with('success', 'Beneficiary rejected successfully.');
+    }
+
+    /**
+     * Bulk approve multiple beneficiaries from the Pending Approvals / All Cases page.
+     * Only Admin HQ and Super Admin can perform this action (see route middleware).
+     */
+    public function bulkApprove(Request $request)
+    {
+        $request->validate([
+            'beneficiary_ids' => 'required|array',
+            'beneficiary_ids.*' => 'integer|exists:beneficiaries,id',
+            'admin_remarks' => 'nullable|string',
+        ]);
+
+        $ids = $request->input('beneficiary_ids', []);
+
+        // Load beneficiaries with scheme so we can apply institutional auto-paid logic
+        $beneficiaries = Beneficiary::with('scheme')
+            ->whereIn('id', $ids)
+            ->where('status', 'submitted')
+            ->get();
+
+        foreach ($beneficiaries as $beneficiary) {
+            $isInstitutional = $beneficiary->scheme && $beneficiary->scheme->is_institutional;
+
+            $updateData = [
+                'approved_by'   => auth()->id(),
+                'approved_at'   => now(),
+                'admin_remarks' => $request->admin_remarks,
+            ];
+
+            if ($isInstitutional) {
+                // Institutional: mark as paid immediately
+                $updateData['status'] = 'paid';
+                $updateData['payment_received_at'] = now();
+                $updateData['jazzcash_status'] = 'INSTITUTIONAL';
+            } else {
+                // Non-institutional: normal approved status
+                $updateData['status'] = 'approved';
+            }
+
+            $beneficiary->update($updateData);
+
+            // Notification to submitter (same as single approve)
+            if ($beneficiary->submittedBy) {
+                \App\Models\Notification::create([
+                    'user_id' => $beneficiary->submitted_by,
+                    'type' => 'beneficiary_approved',
+                    'title' => 'Beneficiary Approved',
+                    'message' => 'Beneficiary ' . $beneficiary->full_name . ' (CNIC: ' . $beneficiary->cnic . ') has been approved.',
+                    'notifiable_type' => Beneficiary::class,
+                    'notifiable_id' => $beneficiary->id,
+                ]);
+            }
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Selected beneficiaries approved successfully.',
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Selected beneficiaries approved successfully.');
     }
 
     public function approvedCases()
@@ -372,9 +456,16 @@ class AdminHQController extends Controller
         $approvedBeneficiaries = (clone $baseQuery('approved'))->orderBy('approved_at', 'desc')->get();
         $rejectedBeneficiaries = (clone $baseQuery('rejected'))->orderBy('rejected_at', 'desc')->get();
         
-        // Paid cases: status = 'paid' and jazzcash_status = 'SUCCESS'
+        // Paid cases:
+        // - JazzCash-paid: status = 'paid' AND jazzcash_status = 'SUCCESS'
+        // - Institutional schemes: status = 'paid' AND scheme.is_institutional = true (paid directly by institution)
         $paidQuery = (clone $baseQuery('paid'))
-            ->where('jazzcash_status', 'SUCCESS')
+            ->where(function ($q) {
+                $q->where('jazzcash_status', 'SUCCESS')
+                  ->orWhereHas('scheme', function ($sq) {
+                      $sq->where('is_institutional', true);
+                  });
+            })
             ->orderBy('payment_received_at', 'desc');
         $paidBeneficiaries = $paidQuery->get();
         

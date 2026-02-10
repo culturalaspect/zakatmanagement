@@ -16,6 +16,7 @@ class User extends Authenticatable
         'password',
         'role',
         'district_id',
+        'institution_id',
         'image',
     ];
 
@@ -37,6 +38,11 @@ class User extends Authenticatable
         return $this->belongsTo(District::class);
     }
 
+    public function institution()
+    {
+        return $this->belongsTo(Institution::class);
+    }
+
     public function isSuperAdmin(): bool
     {
         return $this->role === 'super_admin';
@@ -50,5 +56,10 @@ class User extends Authenticatable
     public function isDistrictUser(): bool
     {
         return $this->role === 'district_user';
+    }
+
+    public function isInstitutionUser(): bool
+    {
+        return $this->role === 'institution';
     }
 }

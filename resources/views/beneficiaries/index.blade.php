@@ -549,6 +549,9 @@
     $(document).ready(function() {
         const schemes = @json($schemes ?? []);
         const committees = @json($committees ?? []);
+        const institutions = @json($institutions ?? []);
+        const isInstitutionUser = {{ auth()->user()->isInstitutionUser() ? 'true' : 'false' }};
+        const currentInstitution = @json(auth()->user()->institution ?? null);
         
         var table = $('#beneficiariesTable').DataTable({
             responsive: true,
@@ -987,9 +990,58 @@
                 requiresRep = age < 18;
             }
 
-            // Get scheme details
+            // Get scheme information
             const scheme = schemes.find(s => s.id == beneficiary.scheme_id);
+            const isInstitutional = scheme?.is_institutional || false;
+            const institutionalType = scheme?.institutional_type || null;
+            const beneficiaryRequiredFields = scheme?.beneficiary_required_fields || [];
+            const allowsRepresentative = scheme?.allows_representative || false;
+            const hasAgeRestriction = scheme?.has_age_restriction || false;
+            const minimumAge = scheme?.minimum_age || 0;
             
+            // Filter institutions based on institutional type
+            let filteredInstitutions = [];
+            if (isInstitutional) {
+                if (institutionalType === 'educational') {
+                    filteredInstitutions = institutions.filter(i => 
+                        ['middle_school', 'high_school', 'college', 'university'].includes(i.type)
+                    );
+                } else if (institutionalType === 'madarsa') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'madarsa');
+                } else if (institutionalType === 'health') {
+                    filteredInstitutions = institutions.filter(i => i.type === 'hospital');
+                }
+            }
+            
+            let institutionOptions = '';
+            let selectedInstitutionText = 'Select Institution';
+            if (isInstitutional && beneficiary.institution_id) {
+                const selectedInstitution = institutions.find(i => i.id == beneficiary.institution_id);
+                if (selectedInstitution) {
+                    selectedInstitutionText = `${selectedInstitution.name} [${selectedInstitution.code ?? 'N/A'}] - ${selectedInstitution.district?.name ?? 'N/A'}`;
+                }
+            }
+            filteredInstitutions.forEach(function(institution) {
+                const displayText = `${institution.name} [${institution.code ?? 'N/A'}] - ${institution.district?.name ?? 'N/A'}`;
+                const selected = institution.id == beneficiary.institution_id ? 'selected' : '';
+                institutionOptions += `<div class="custom-select-option" data-value="${institution.id}" data-text="${displayText}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; ${selected ? 'background-color: #e7f3ff;' : ''}">${displayText}</div>`;
+            });
+
+            // Check if representative is required (age < 18 AND scheme allows representative)
+            if (dob) {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                // Representative required only if age < 18 AND scheme allows representative
+                requiresRep = (age < 18 && allowsRepresentative);
+            }
+            
+            const isInstitutionUser = {{ auth()->user()->isInstitutionUser() ? 'true' : 'false' }};
+
             Swal.fire({
                 title: 'Edit Beneficiary',
                 html: `
@@ -1015,28 +1067,56 @@
                             </div>
                         </div>
 
+                        
                         <div class="card mb-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
                             <div class="card-body">
-                                <h6 class="card-title mb-3">Local Zakat Committee Selection</h6>
+                                <h6 class="card-title mb-3">${isInstitutional ? 'Institution' : 'Local Zakat Committee'}</h6>
                                 <div class="row">
-                                    <div class="col-md-12 mb-3">
-                                        <label class="form-label">Local Zakat Committee <span class="text-danger">*</span></label>
-                                        <div class="custom-searchable-select" style="position: relative;">
-                                            <input type="hidden" name="local_zakat_committee_id" id="edit_local_zakat_committee_id" value="${beneficiary.local_zakat_committee_id}" required>
-                                            <div class="custom-select-display" id="edit_lzc_select_display" style="border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;">
-                                                <span class="select-placeholder" style="color: #212529;">${selectedCommitteeText}</span>
-                                                <span class="select-arrow" style="margin-left: auto;">▼</span>
-                                            </div>
-                                            <div class="custom-select-dropdown" id="edit_lzc_select_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;">
-                                                <div class="custom-select-search" style="padding: 8px; border-bottom: 1px solid #dee2e6;">
-                                                    <input type="text" id="edit_lzc_search_input" class="form-control form-control-sm" placeholder="Search committee..." autocomplete="off">
+                                    ${isInstitutional ? `
+                                        <div class="col-md-12 mb-3">
+                                            ${isInstitutionUser && currentInstitution ? `
+                                                <label class="form-label">Institution</label>
+                                                <p class="mb-0"><strong>${currentInstitution.name} [${currentInstitution.code ?? 'N/A'}] - ${currentInstitution.district?.name ?? 'N/A'}</strong></p>
+                                                <input type="hidden" name="institution_id" id="edit_institution_id" value="${currentInstitution.id}">
+                                            ` : `
+                                                <label class="form-label">Institution <span class="text-danger">*</span></label>
+                                                <div class="custom-searchable-select" style="position: relative;">
+                                                    <input type="hidden" name="institution_id" id="edit_institution_id" value="${beneficiary.institution_id || ''}" required>
+                                                    <div class="custom-select-display" id="edit_institution_select_display" style="border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;">
+                                                        <span class="select-placeholder" style="color: #212529;">${selectedInstitutionText}</span>
+                                                        <span class="select-arrow" style="margin-left: auto;">▼</span>
+                                                    </div>
+                                                    <div class="custom-select-dropdown" id="edit_institution_select_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;">
+                                                        <div class="custom-select-search" style="padding: 8px; border-bottom: 1px solid #dee2e6;">
+                                                            <input type="text" id="edit_institution_search_input" class="form-control form-control-sm" placeholder="Search institution..." autocomplete="off">
+                                                        </div>
+                                                        <div class="custom-select-options" id="edit_institution_select_options" style="max-height: 250px; overflow-y: auto;">
+                                                            ${institutionOptions}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="custom-select-options" id="edit_lzc_select_options" style="max-height: 250px; overflow-y: auto;">
-                                                    ${committeeOptions}
+                                            `}
+                                        </div>
+                                    ` : `
+                                        <div class=\"col-md-12 mb-3\">
+                                            <label class=\"form-label\">Local Zakat Committee <span class=\"text-danger\">*</span></label>
+                                            <div class=\"custom-searchable-select\" style=\"position: relative;\">
+                                                <input type=\"hidden\" name=\"local_zakat_committee_id\" id=\"edit_local_zakat_committee_id\" value=\"${beneficiary.local_zakat_committee_id || ''}\" required>
+                                                <div class=\"custom-select-display\" id=\"edit_lzc_select_display\" style=\"border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.375rem 0.75rem; background-color: #fff; cursor: pointer; min-height: 38px; display: flex; align-items: center;\">
+                                                    <span class=\"select-placeholder\" style=\"color: #212529;\">${selectedCommitteeText}</span>
+                                                    <span class=\"select-arrow\" style=\"margin-left: auto;\">▼</span>
+                                                </div>
+                                                <div class=\"custom-select-dropdown\" id=\"edit_lzc_select_dropdown\" style=\"display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #ced4da; border-radius: 0.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1000; max-height: 300px; overflow-y: auto; margin-top: 2px;\">
+                                                    <div class=\"custom-select-search\" style=\"padding: 8px; border-bottom: 1px solid #dee2e6;\">
+                                                        <input type=\"text\" id=\"edit_lzc_search_input\" class=\"form-control form-control-sm\" placeholder=\"Search committee...\" autocomplete=\"off\">
+                                                    </div>
+                                                    <div class=\"custom-select-options\" id=\"edit_lzc_select_options\" style=\"max-height: 250px; overflow-y: auto;\">
+                                                        ${committeeOptions}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    `}
                                 </div>
                             </div>
                         </div>
@@ -1045,9 +1125,9 @@
                         <h6>Beneficiary Information</h6>
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">CNIC <span class="text-danger">*</span></label>
+                                <label class="form-label">CNIC <span class="text-danger" id="edit_cnicRequired" style="display: ${beneficiaryRequiredFields.includes('cnic') ? 'inline' : 'none'};">*</span></label>
                                 <div class="input-group">
-                                    <input type="text" name="cnic" id="edit_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" value="${beneficiary.cnic || ''}" required>
+                                    <input type="text" name="cnic" id="edit_cnic" class="form-control" placeholder="12345-1234567-1" maxlength="15" pattern="[0-9]{5}-[0-9]{7}-[0-9]{1}" value="${beneficiary.cnic || ''}" ${beneficiaryRequiredFields.includes('cnic') ? 'required' : ''}>
                                     <button type="button" class="btn btn-primary" id="edit_fetchBeneficiaryDetailsBtn" title="Fetch details from Wheat Distribution System">
                                         <i class="ti-search"></i> Fetch Details
                                     </button>
@@ -1055,9 +1135,9 @@
                                 <small class="text-muted">Format: XXXXX-XXXXXXX-X</small>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <label class="form-label">Full Name <span class="text-danger" id="edit_full_nameRequired" style="display: ${beneficiaryRequiredFields.includes('full_name') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="full_name" id="edit_full_name" class="form-control" value="${beneficiary.full_name || ''}" required>
+                                    <input type="text" name="full_name" id="edit_full_name" class="form-control" value="${beneficiary.full_name || ''}" ${beneficiaryRequiredFields.includes('full_name') ? 'required' : ''}>
                                     <div id="edit_apiFullName" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_full_name" title="Copy to form field">
@@ -1067,9 +1147,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Father/Husband Name <span class="text-danger">*</span></label>
+                                <label class="form-label">Father/Husband Name <span class="text-danger" id="edit_father_husband_nameRequired" style="display: ${beneficiaryRequiredFields.includes('father_husband_name') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="father_husband_name" id="edit_father_husband_name" class="form-control" value="${beneficiary.father_husband_name || ''}" required>
+                                    <input type="text" name="father_husband_name" id="edit_father_husband_name" class="form-control" value="${beneficiary.father_husband_name || ''}" ${beneficiaryRequiredFields.includes('father_husband_name') ? 'required' : ''}>
                                     <div id="edit_apiFatherHusbandName" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_father_husband_name" title="Copy to form field">
@@ -1079,9 +1159,9 @@
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Mobile Number</label>
+                                <label class="form-label">Mobile Number <span class="text-danger" id="edit_mobile_numberRequired" style="display: ${beneficiaryRequiredFields.includes('mobile_number') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="text" name="mobile_number" id="edit_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" value="${beneficiary.mobile_number || ''}">
+                                    <input type="text" name="mobile_number" id="edit_mobile_number" class="form-control" placeholder="03XX-XXXXXXX" maxlength="12" value="${beneficiary.mobile_number || ''}" ${beneficiaryRequiredFields.includes('mobile_number') ? 'required' : ''}>
                                     <div id="edit_apiMobileNumber" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_mobile_number" title="Copy to form field">
@@ -1092,9 +1172,9 @@
                                 <small class="text-muted">Format: 03XX-XXXXXXX</small>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+                                <label class="form-label">Date of Birth <span class="text-danger" id="edit_date_of_birthRequired" style="display: ${beneficiaryRequiredFields.includes('date_of_birth') ? 'inline' : 'none'};">*</span></label>
                                 <div class="position-relative">
-                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" value="${dob}" required>
+                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" value="${dob}" ${beneficiaryRequiredFields.includes('date_of_birth') ? 'required' : ''}>
                                     <div id="edit_apiDateOfBirth" class="api-data-container" style="display: none;">
                                         <div class="api-data-value"></div>
                                         <button type="button" class="btn btn-sm btn-success api-copy-btn" data-target="edit_date_of_birth" title="Copy to form field">
@@ -1120,6 +1200,12 @@
                                     </div>
                                 </div>
                             </div>
+                            ${institutionalType === 'educational' ? `
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Class <span class="text-danger">*</span></label>
+                                <input type="text" name="class" id="edit_class" class="form-control" placeholder="e.g., 5th, 10th, 1st Year" value="${beneficiary.class || ''}" required>
+                            </div>
+                            ` : ''}
                             <div class="col-md-6 mb-3" id="edit_amountDiv">
                                 <label class="form-label">Amount <span class="text-danger" id="edit_amountRequired" style="display: none;">*</span></label>
                                 <input type="number" name="amount" id="edit_amount" class="form-control" step="0.01" min="0" value="${beneficiary.amount || 0}" readonly>
@@ -1256,20 +1342,58 @@
                     confirmButton: 'btn btn-primary'
                 },
                 didOpen: () => {
-                    initCustomSelect('#edit_lzc_select_display', '#edit_lzc_select_dropdown', '#edit_lzc_search_input', '#edit_lzc_select_options', '#edit_local_zakat_committee_id');
+                    // Initialize custom select for LZC or Institution based on scheme type
+                    if (isInstitutional) {
+                        initCustomSelect('#edit_institution_select_display', '#edit_institution_select_dropdown', '#edit_institution_search_input', '#edit_institution_select_options', '#edit_institution_id');
+                        
+                        // Set initial selected value and display text for institution
+                        const institutionId = $('#edit_institution_id').val();
+                        if (institutionId) {
+                            const selectedOption = $('#edit_institution_select_options').find(`[data-value="${institutionId}"]`);
+                            if (selectedOption.length) {
+                                const selectedText = selectedOption.data('text');
+                                $('#edit_institution_select_display').find('.select-placeholder').text(selectedText).css('color', '#000');
+                                selectedOption.addClass('selected');
+                            }
+                        }
+                    } else {
+                        initCustomSelect('#edit_lzc_select_display', '#edit_lzc_select_dropdown', '#edit_lzc_search_input', '#edit_lzc_select_options', '#edit_local_zakat_committee_id');
+                        
+                        // Set initial selected value and display text for LZC
+                        const lzcId = $('#edit_local_zakat_committee_id').val();
+                        if (lzcId) {
+                            const selectedOption = $('#edit_lzc_select_options').find(`[data-value="${lzcId}"]`);
+                            if (selectedOption.length) {
+                                const selectedText = selectedOption.data('text');
+                                $('#edit_lzc_select_display').find('.select-placeholder').text(selectedText).css('color', '#000');
+                                selectedOption.addClass('selected');
+                            }
+                        }
+                    }
 
                     if (beneficiary.scheme_id) {
                         loadSchemeCategories(beneficiary.scheme_id, '#edit_scheme_category_id', '#edit_schemeCategoryDiv', beneficiary.scheme_category_id);
                     }
 
-                    // Setup API handlers - will add in next chunk
+                    // Setup API handlers
                     setupEditModalApiHandlers(beneficiary.id);
+                    
+                    // Check age and representative requirement on load
+                    checkAgeAndRequireRepresentativeEdit();
                 },
                 preConfirm: () => {
                     const form = document.getElementById('editBeneficiaryForm');
                     const formData = new FormData(form);
                     const data = {};
                     
+                    // Get scheme information
+                    const schemeId = $('#edit_scheme_id').val();
+                    const scheme = schemes.find(s => s.id == schemeId);
+                    const isInstitutional = scheme?.is_institutional || false;
+                    const institutionalType = scheme?.institutional_type || null;
+                    const allowsRepresentative = scheme?.allows_representative || false;
+                    
+                    // Calculate age first to determine if representative is required
                     const dob = $('#edit_date_of_birth').val();
                     let requiresRepresentative = 0;
                     if (dob) {
@@ -1280,9 +1404,30 @@
                         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
                             age--;
                         }
-                        requiresRepresentative = age < 18 ? 1 : 0;
+                        // Representative required only if age < 18 AND scheme allows representative
+                        requiresRepresentative = (age < 18 && allowsRepresentative) ? 1 : 0;
                     }
                     data.requires_representative = requiresRepresentative;
+                    
+                    // Add institution_id or local_zakat_committee_id based on scheme type
+                    if (isInstitutional) {
+                        const institutionId = $('#edit_institution_id').val();
+                        if (institutionId) {
+                            data.institution_id = institutionId;
+                        }
+                        // Add class for educational schemes
+                        if (institutionalType === 'educational') {
+                            const classValue = $('#edit_class').val();
+                            if (classValue) {
+                                data.class = classValue;
+                            }
+                        }
+                    } else {
+                        const lzcId = $('#edit_local_zakat_committee_id').val();
+                        if (lzcId) {
+                            data.local_zakat_committee_id = lzcId;
+                        }
+                    }
                     
                     for (let [key, value] of formData.entries()) {
                         if (key.startsWith('representative[')) {
@@ -1296,9 +1441,70 @@
                         }
                     }
                     
-                    if (!data.local_zakat_committee_id || data.local_zakat_committee_id === '') {
-                        Swal.showValidationMessage('Please select a Local Zakat Committee.');
-                        return false;
+                    // Validate representative fields if age < 18 AND scheme allows representative
+                    if (requiresRepresentative === 1) {
+                        if (!data.representative || !data.representative.cnic || data.representative.cnic === '') {
+                            Swal.showValidationMessage('Representative CNIC is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.full_name || data.representative.full_name === '') {
+                            Swal.showValidationMessage('Representative Full Name is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.father_husband_name || data.representative.father_husband_name === '') {
+                            Swal.showValidationMessage('Representative Father/Husband Name is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.date_of_birth || data.representative.date_of_birth === '') {
+                            Swal.showValidationMessage('Representative Date of Birth is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.gender || data.representative.gender === '') {
+                            Swal.showValidationMessage('Representative Gender is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        if (!data.representative || !data.representative.relationship || data.representative.relationship === '') {
+                            Swal.showValidationMessage('Representative Relationship is required for beneficiaries under 18 years of age.');
+                            return false;
+                        }
+                        
+                        // Validate representative age (must be 18+)
+                        if (data.representative.date_of_birth) {
+                            const repBirthDate = new Date(data.representative.date_of_birth);
+                            const today = new Date();
+                            let repAge = today.getFullYear() - repBirthDate.getFullYear();
+                            const monthDiff = today.getMonth() - repBirthDate.getMonth();
+                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < repBirthDate.getDate())) {
+                                repAge--;
+                            }
+                            if (repAge < 18) {
+                                Swal.showValidationMessage('Representative must be 18 years or above. The provided representative is ' + repAge + ' years old.');
+                                return false;
+                            }
+                        }
+                    } else {
+                        // If age >= 18, ensure no representative data is sent
+                        delete data.representative;
+                    }
+                    
+                    // Validate LZC or Institution selection based on scheme type
+                    if (isInstitutional) {
+                        if (!data.institution_id || data.institution_id === '') {
+                            Swal.showValidationMessage('Please select an Institution.');
+                            return false;
+                        }
+                        // Validate class for educational schemes
+                        if (institutionalType === 'educational') {
+                            if (!data.class || data.class === '') {
+                                Swal.showValidationMessage('Please enter the class for educational beneficiaries.');
+                                return false;
+                            }
+                        }
+                    } else {
+                        if (!data.local_zakat_committee_id || data.local_zakat_committee_id === '') {
+                            Swal.showValidationMessage('Please select a Local Zakat Committee.');
+                            return false;
+                        }
                     }
 
                     return $.ajax({
@@ -1658,8 +1864,15 @@
         }
 
         // Check age and show representative form for edit
-        function checkAgeAndRequireRepresentativeForEdit() {
+        function checkAgeAndRequireRepresentativeEdit() {
             const dob = $('#edit_date_of_birth').val();
+            // Get scheme from the schemes array
+            const schemeId = $('#edit_scheme_id').val();
+            const scheme = schemes.find(s => s.id == schemeId);
+            const allowsRepresentative = scheme?.allows_representative || false;
+            const hasAgeRestriction = scheme?.has_age_restriction || false;
+            const minimumAge = scheme?.minimum_age || 0;
+            
             if (dob) {
                 const birthDate = new Date(dob);
                 const today = new Date();
@@ -1669,11 +1882,81 @@
                     age--;
                 }
                 
+                // Check scheme settings
                 if (age < 18) {
-                    $('#edit_representativeDiv').slideDown();
+                    // Check if scheme allows representative
+                    if (!allowsRepresentative) {
+                        // If scheme has age restriction and doesn't allow representative, < 18 beneficiaries are not eligible
+                        if (hasAgeRestriction && minimumAge >= 18) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Not Eligible',
+                                text: 'This scheme has age restriction (minimum age: ' + minimumAge + ') and does not allow representatives. Beneficiaries below 18 years are not eligible for this scheme.',
+                            });
+                            $('#edit_date_of_birth').val(dob);
+                            $('#edit_representativeDiv').hide();
+                            // Remove required from representative fields
+                            $('#edit_rep_cnic').prop('required', false);
+                            $('#edit_rep_full_name').prop('required', false);
+                            $('#edit_rep_father_husband_name').prop('required', false);
+                            $('#edit_rep_date_of_birth').prop('required', false);
+                            $('#edit_rep_gender').prop('required', false);
+                            $('#edit_rep_relationship').prop('required', false);
+                            return;
+                        }
+                        // If no age restriction or minimum age < 18, just hide representative section
+                        $('#edit_representativeDiv').hide();
+                        // Remove required from representative fields
+                        $('#edit_rep_cnic').prop('required', false);
+                        $('#edit_rep_full_name').prop('required', false);
+                        $('#edit_rep_father_husband_name').prop('required', false);
+                        $('#edit_rep_date_of_birth').prop('required', false);
+                        $('#edit_rep_gender').prop('required', false);
+                        $('#edit_rep_relationship').prop('required', false);
+                    } else {
+                        // Scheme allows representative - show representative section and make fields required
+                        $('#edit_representativeDiv').slideDown();
+                        
+                        // Make representative fields required
+                        $('#edit_rep_cnic').prop('required', true);
+                        $('#edit_rep_full_name').prop('required', true);
+                        $('#edit_rep_father_husband_name').prop('required', true);
+                        $('#edit_rep_date_of_birth').prop('required', true);
+                        $('#edit_rep_gender').prop('required', true);
+                        $('#edit_rep_relationship').prop('required', true);
+                    }
                 } else {
+                    // Age is 18 or above - hide representative section and remove required
                     $('#edit_representativeDiv').slideUp();
+                    
+                    // Remove required from representative fields
+                    $('#edit_rep_cnic').prop('required', false);
+                    $('#edit_rep_full_name').prop('required', false);
+                    $('#edit_rep_father_husband_name').prop('required', false);
+                    $('#edit_rep_date_of_birth').prop('required', false);
+                    $('#edit_rep_gender').prop('required', false);
+                    $('#edit_rep_relationship').prop('required', false);
+                    
+                    // Clear representative fields
+                    $('#edit_rep_cnic').val('');
+                    $('#edit_rep_full_name').val('');
+                    $('#edit_rep_father_husband_name').val('');
+                    $('#edit_rep_mobile_number').val('');
+                    $('#edit_rep_date_of_birth').val('');
+                    $('#edit_rep_gender').val('');
+                    $('#edit_rep_relationship').val('');
                 }
+            } else {
+                // No date of birth - hide representative section
+                $('#edit_representativeDiv').hide();
+                
+                // Remove required from representative fields
+                $('#edit_rep_cnic').prop('required', false);
+                $('#edit_rep_full_name').prop('required', false);
+                $('#edit_rep_father_husband_name').prop('required', false);
+                $('#edit_rep_date_of_birth').prop('required', false);
+                $('#edit_rep_gender').prop('required', false);
+                $('#edit_rep_relationship').prop('required', false);
             }
         }
 
@@ -1802,8 +2085,11 @@
             });
 
             $('#edit_date_of_birth').off('change').on('change', function() {
-                checkAgeAndRequireRepresentativeForEdit();
+                checkAgeAndRequireRepresentativeEdit();
             });
+            
+            // Also check on input (for manual typing)
+            $('#edit_date_of_birth').off('input').on('input', checkAgeAndRequireRepresentativeEdit);
 
             $('#edit_scheme_category_id').off('change').on('change', function() {
                 const selectedOption = $(this).find('option:selected');
@@ -2012,7 +2298,7 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label"><strong>District Remarks</strong></label>
+                            <label class="form-label"><strong>{{ auth()->user()->isInstitutionUser() ? 'Remarks' : 'District Remarks' }}</strong></label>
                             <textarea name="district_remarks" id="verify_district_remarks" class="form-control" rows="3" placeholder="Enter any remarks or observations after comparing with API data...">${beneficiary.district_remarks || ''}</textarea>
                             <small class="text-muted">Add any remarks or observations after comparing the beneficiary data with the API data.</small>
                         </div>
@@ -2315,7 +2601,7 @@
                                         <div class="col-md-6 mb-2"><strong>Amount:</strong> Rs. ${parseFloat(b.amount || 0).toFixed(2)}</div>
                                         <div class="col-md-6 mb-2"><strong>Status:</strong> <span class="badge bg-${getStatusColor(b.status)}">${b.status || 'N/A'}</span></div>
                                         <div class="col-md-12 mb-2"><strong>Representative Required:</strong> ${b.requires_representative ? 'Yes (Age < 18)' : 'No (Age ≥ 18)'}</div>
-                                        ${b.district_remarks ? `<div class="col-md-12 mb-2"><strong>District Remarks:</strong> ${b.district_remarks}</div>` : ''}
+                                        ${b.district_remarks ? `<div class="col-md-12 mb-2"><strong>{{ auth()->user()->isInstitutionUser() ? 'Remarks' : 'District Remarks' }}:</strong> ${b.district_remarks}</div>` : ''}
                                         ${b.admin_remarks ? `<div class="col-md-12 mb-2"><strong>Admin Remarks:</strong> ${b.admin_remarks}</div>` : ''}
                                         ${b.rejection_remarks ? `<div class="col-md-12 mb-2"><strong>Rejection Remarks:</strong> ${b.rejection_remarks}</div>` : ''}
                                     </div>

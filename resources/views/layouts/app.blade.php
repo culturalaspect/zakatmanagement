@@ -721,7 +721,7 @@
             </li>
             @endif
             
-            @if(!auth()->user()->isDistrictUser())
+            @if(!auth()->user()->isDistrictUser() && !auth()->user()->isInstitutionUser())
             <h4 class="menu-text"><span>COMMITTEES</span> <i class="fas fa-ellipsis-h"></i> </h4>
             <li class="{{ request()->routeIs('local-zakat-committees.*') ? 'active' : '' }}">
                 <a href="{{ route('local-zakat-committees.index') }}" class="{{ request()->routeIs('local-zakat-committees.*') ? 'active' : '' }}" aria-expanded="false">
@@ -743,10 +743,20 @@
                     </div>
                 </a>
             </li>
+            <li class="{{ request()->routeIs('institutions.*') ? 'active' : '' }}">
+                <a href="{{ route('institutions.index') }}" class="{{ request()->routeIs('institutions.*') ? 'active' : '' }}" aria-expanded="false">
+                    <div class="nav_icon_small">
+                        <i class="ti-home"></i>
+                    </div>
+                    <div class="nav_title">
+                        <span>Institutions</span>
+                    </div>
+                </a>
+            </li>
             @endif
             
             <h4 class="menu-text"><span>DISBURSEMENT</span> <i class="fas fa-ellipsis-h"></i> </h4>
-            @if(!auth()->user()->isDistrictUser())
+            @if(!auth()->user()->isDistrictUser() && !auth()->user()->isInstitutionUser())
             <li class="{{ request()->routeIs('phases.*') ? 'active' : '' }}">
                 <a href="{{ route('phases.index') }}" class="{{ request()->routeIs('phases.*') ? 'active' : '' }}" aria-expanded="false">
                     <div class="nav_icon_small">

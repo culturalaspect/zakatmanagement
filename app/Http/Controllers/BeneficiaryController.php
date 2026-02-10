@@ -24,6 +24,9 @@ class BeneficiaryController extends Controller
             $query->whereHas('phase', function($q) use ($user) {
                 $q->where('district_id', $user->district_id);
             });
+        } elseif ($user->isInstitutionUser() && $user->institution) {
+            // Institution users see only their own beneficiaries
+            $query->where('institution_id', $user->institution_id);
         }
 
         $beneficiaries = $query->orderBy('created_at', 'desc')->get();
@@ -37,6 +40,13 @@ class BeneficiaryController extends Controller
         }
         $committees = $committeesQuery->get();
         
+        // Get institutions for institutional schemes
+        $institutionsQuery = \App\Models\Institution::where('is_active', true)->with('district');
+        if ($user->isDistrictUser() && $user->district_id) {
+            $institutionsQuery->where('district_id', $user->district_id);
+        }
+        $institutions = $institutionsQuery->get();
+        
         // Get filter options
         $districtsQuery = \App\Models\District::where('is_active', true)->orderBy('name');
         if ($user->isDistrictUser() && $user->district_id) {
@@ -46,7 +56,7 @@ class BeneficiaryController extends Controller
         
         $financialYears = \App\Models\FinancialYear::orderBy('name', 'desc')->get();
         
-        return view('beneficiaries.index', compact('beneficiaries', 'schemes', 'committees', 'districts', 'financialYears'));
+        return view('beneficiaries.index', compact('beneficiaries', 'schemes', 'committees', 'institutions', 'districts', 'financialYears'));
     }
 
     public function applications()
@@ -59,7 +69,33 @@ class BeneficiaryController extends Controller
             ->with(['installment.fundAllocation.financialYear', 'district', 'scheme']);
 
         if ($user->isDistrictUser() && $user->district_id) {
+            // District users see all open phases in their district
             $phasesQuery->where('district_id', $user->district_id);
+        } elseif ($user->isInstitutionUser() && $user->institution) {
+            // Institution users:
+            // - Only see phases in their institution's district
+            // - Only for institutional schemes matching their institution type
+            $institution = $user->institution;
+            $districtId = $institution->district_id;
+
+            // Map institution.type to scheme.institutional_type
+            $institutionType = $institution->type; // e.g. middle_school, high_school, college, university, madarsa, hospital
+            $institutionalTypeForScheme = null;
+            if (in_array($institutionType, ['middle_school', 'high_school', 'college', 'university'])) {
+                $institutionalTypeForScheme = 'educational';
+            } elseif ($institutionType === 'madarsa') {
+                $institutionalTypeForScheme = 'madarsa';
+            } elseif ($institutionType === 'hospital') {
+                $institutionalTypeForScheme = 'health';
+            }
+
+            $phasesQuery->where('district_id', $districtId)
+                ->whereHas('scheme', function ($q) use ($institutionalTypeForScheme) {
+                    $q->where('is_institutional', true);
+                    if ($institutionalTypeForScheme) {
+                        $q->where('institutional_type', $institutionalTypeForScheme);
+                    }
+                });
         }
 
         $phases = $phasesQuery->orderBy('start_date', 'desc')
@@ -111,7 +147,8 @@ class BeneficiaryController extends Controller
             'beneficiaries.scheme', 
             'beneficiaries.localZakatCommittee',
             'beneficiaries.schemeCategory',
-            'beneficiaries.representative'
+            'beneficiaries.representative',
+            'beneficiaries.institution',
         ]);
 
         // Get current beneficiaries count and amount
@@ -132,9 +169,24 @@ class BeneficiaryController extends Controller
             $committeesQuery->where('district_id', $phase->district_id);
         }
         $committees = $committeesQuery->get();
+        
+        // Get institutions for institutional schemes
+        $institutionsQuery = \App\Models\Institution::where('is_active', true)->with('district');
+        if ($user->isDistrictUser() && $user->district_id) {
+            $institutionsQuery->where('district_id', $user->district_id);
+        } else {
+            $institutionsQuery->where('district_id', $phase->district_id);
+        }
+        $institutions = $institutionsQuery->get();
+
+        // Get beneficiaries visible to this user
+        $beneficiaries = $phase->beneficiaries;
+        if ($user->isInstitutionUser() && $user->institution) {
+            // Institution users should only see beneficiaries of their own institution
+            $beneficiaries = $beneficiaries->where('institution_id', $user->institution_id)->values();
+        }
 
         // Get unique schemes, categories, committees, and statuses from beneficiaries for filtering
-        $beneficiaries = $phase->beneficiaries;
         $uniqueSchemes = $beneficiaries->pluck('scheme')->filter()->unique('id')->pluck('name')->sort()->values();
         $uniqueCategories = $beneficiaries->pluck('schemeCategory')->filter()->unique('id')->pluck('name')->sort()->values();
         $uniqueCommittees = $beneficiaries->pluck('localZakatCommittee')->filter()->unique('id')->pluck('name')->sort()->values();
@@ -146,6 +198,8 @@ class BeneficiaryController extends Controller
             'currentAmount', 
             'schemes', 
             'committees',
+            'institutions',
+            'beneficiaries',
             'uniqueSchemes',
             'uniqueCategories',
             'uniqueCommittees',
@@ -247,24 +301,24 @@ class BeneficiaryController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        // Normalize CNIC: convert empty strings to null if CNIC is not required
+        // This needs to be done before validation
+        $scheme = Scheme::findOrFail($request->scheme_id);
+        $beneficiaryRequiredFields = $scheme->beneficiary_required_fields ?? [];
+        
+        if (!in_array('cnic', $beneficiaryRequiredFields) && $request->has('cnic') && (empty($request->cnic) || trim($request->cnic) === '')) {
+            $request->merge(['cnic' => null]);
+        }
+        
+        // Get scheme to determine validation rules
+        $isInstitutional = $scheme->is_institutional ?? false;
+        $allowsRepresentative = $scheme->allows_representative ?? false;
+        
+        // Build validation rules dynamically based on scheme settings
+        $rules = [
             'phase_id' => 'required|exists:phases,id',
             'scheme_id' => 'required|exists:schemes,id',
             'scheme_category_id' => 'nullable|exists:scheme_categories,id',
-            'local_zakat_committee_id' => 'required|exists:local_zakat_committees,id',
-            'cnic' => [
-                'required',
-                'string',
-                Rule::unique('beneficiaries')->where(function ($query) use ($request) {
-                    return $query->where('phase_id', $request->phase_id)
-                                 ->where('scheme_id', $request->scheme_id);
-                }),
-            ],
-            'full_name' => 'required|string|max:255',
-            'father_husband_name' => 'required|string|max:255',
-            'mobile_number' => 'nullable|string|max:20',
-            'date_of_birth' => 'required|date',
-            'gender' => 'required|in:male,female,other',
             'amount' => 'required|numeric|min:0',
             'requires_representative' => 'boolean',
             'representative' => 'nullable|array',
@@ -275,32 +329,99 @@ class BeneficiaryController extends Controller
             'representative.date_of_birth' => 'nullable|date',
             'representative.gender' => 'nullable|in:male,female,other',
             'representative.relationship' => 'nullable|string|max:255',
-        ]);
+            'class' => 'nullable|string|max:255',
+        ];
+        
+        // Add LZC or Institution validation based on scheme type
+        if ($isInstitutional) {
+            $rules['institution_id'] = 'required|exists:institutions,id';
+            if ($scheme->institutional_type === 'educational') {
+                $rules['class'] = 'required|string|max:255';
+            }
+        } else {
+            $rules['local_zakat_committee_id'] = 'required|exists:local_zakat_committees,id';
+        }
+        
+        // Add field validation based on beneficiary_required_fields
+        if (in_array('cnic', $beneficiaryRequiredFields)) {
+            $rules['cnic'] = [
+                'required',
+                'string',
+                Rule::unique('beneficiaries')->where(function ($query) use ($request) {
+                    return $query->where('phase_id', $request->phase_id)
+                                 ->where('scheme_id', $request->scheme_id);
+                }),
+            ];
+        } else {
+            // CNIC is optional - allow nullable, but if provided, it should be unique
+            $rules['cnic'] = [
+                'nullable',
+                'string',
+                Rule::unique('beneficiaries')->where(function ($query) use ($request) {
+                    return $query->where('phase_id', $request->phase_id)
+                                 ->where('scheme_id', $request->scheme_id);
+                })->ignore($request->id ?? null),
+            ];
+        }
+        
+        if (in_array('full_name', $beneficiaryRequiredFields)) {
+            $rules['full_name'] = 'required|string|max:255';
+        } else {
+            $rules['full_name'] = 'nullable|string|max:255';
+        }
+        
+        if (in_array('father_husband_name', $beneficiaryRequiredFields)) {
+            $rules['father_husband_name'] = 'required|string|max:255';
+        } else {
+            $rules['father_husband_name'] = 'nullable|string|max:255';
+        }
+        
+        if (in_array('mobile_number', $beneficiaryRequiredFields)) {
+            $rules['mobile_number'] = 'required|string|max:20';
+        } else {
+            $rules['mobile_number'] = 'nullable|string|max:20';
+        }
+        
+        if (in_array('date_of_birth', $beneficiaryRequiredFields)) {
+            $rules['date_of_birth'] = 'required|date';
+        } else {
+            $rules['date_of_birth'] = 'nullable|date';
+        }
+        
+        if (in_array('gender', $beneficiaryRequiredFields)) {
+            $rules['gender'] = 'required|in:male,female,other';
+        } else {
+            $rules['gender'] = 'nullable|in:male,female,other';
+        }
+        
+        $validated = $request->validate($rules);
 
         // Check if beneficiary is a committee member
         $phase = Phase::with(['installment.fundAllocation.financialYear'])->findOrFail($validated['phase_id']);
         
-        // Check 1: Check if CNIC matches any active LZC member (regardless of committee)
-        $activeLZCMember = LZCMember::where('cnic', $validated['cnic'])
-            ->where('is_active', true)
-            ->where(function($q) {
-                $q->whereNull('end_date')
-                  ->orWhere('end_date', '>=', now()->toDateString());
-            })
-            ->first();
+        // Check 1: Check if CNIC matches any active LZC member (only if CNIC is mandatory)
+        if (in_array('cnic', $beneficiaryRequiredFields) && !empty($validated['cnic'])) {
+            $activeLZCMember = LZCMember::where('cnic', $validated['cnic'])
+                ->where('is_active', true)
+                ->where(function($q) {
+                    $q->whereNull('end_date')
+                      ->orWhere('end_date', '>=', now()->toDateString());
+                })
+                ->first();
 
-        if ($activeLZCMember) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Active LZC Members are not eligible for any scheme. The member must be inactive to be eligible.',
-                'errors' => ['cnic' => ['Active LZC Members are not eligible for any scheme. The member must be inactive to be eligible.']]
-            ], 422);
+            if ($activeLZCMember) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Active LZC Members are not eligible for any scheme. The member must be inactive to be eligible.',
+                    'errors' => ['cnic' => ['Active LZC Members are not eligible for any scheme. The member must be inactive to be eligible.']]
+                ], 422);
+            }
         }
 
-        // Check 2: Check if CNIC already exists in any scheme for the same financial year
+        // Check 2: Check if CNIC already exists in any scheme for the same financial year (only if CNIC is mandatory)
         $financialYear = $phase->installment->fundAllocation->financialYear;
         
-        if ($financialYear) {
+        if ($financialYear && in_array('cnic', $beneficiaryRequiredFields) && !empty($validated['cnic'])) {
             // Normalize CNIC for comparison (remove dashes and spaces)
             $inputCnic = trim($validated['cnic']);
             $normalizedInputCnic = str_replace(['-', ' '], '', $inputCnic);
@@ -393,7 +514,7 @@ class BeneficiaryController extends Controller
 
         // Check age restrictions and automatically determine if representative is required
         $scheme = Scheme::with('categories')->findOrFail($validated['scheme_id']);
-        $age = Carbon::parse($validated['date_of_birth'])->age;
+        $age = !empty($validated['date_of_birth']) ? Carbon::parse($validated['date_of_birth'])->age : null;
         
         // Auto-set amount from scheme category if selected
         if ($validated['scheme_category_id']) {
@@ -454,12 +575,21 @@ class BeneficiaryController extends Controller
             }
         }
         
-        // Automatically determine if representative is required based on age
-        // If age < 18, representative is mandatory
-        $requiresRepresentative = $age < 18 ? 1 : 0;
+        // Automatically determine if representative is required based on age and scheme settings
+        // If age < 18 AND scheme allows representative, representative is mandatory
+        $requiresRepresentative = ($age !== null && $age < 18 && $allowsRepresentative) ? 1 : 0;
         $validated['requires_representative'] = $requiresRepresentative;
         
-        // If representative is required (age < 18), validate representative fields
+        // Check if scheme has age restriction and doesn't allow representative - < 18 beneficiaries won't be eligible
+        if ($age !== null && $age < 18 && !$allowsRepresentative && $scheme->has_age_restriction && $scheme->minimum_age >= 18) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This scheme has age restriction (minimum age: ' . $scheme->minimum_age . ') and does not allow representatives. Beneficiaries below 18 years are not eligible for this scheme.',
+                'errors' => ['date_of_birth' => ['Beneficiaries below 18 years are not eligible for this scheme.']]
+            ], 422);
+        }
+        
+        // If representative is required (age < 18 AND scheme allows representative), validate representative fields
         if ($requiresRepresentative) {
             if (!$request->has('representative') || empty($request->representative)) {
                 return response()->json([
@@ -487,10 +617,22 @@ class BeneficiaryController extends Controller
                     'errors' => $representativeValidator->errors()
                 ], 422);
             }
+            
+            // Validate that representative must be 18 or above
+            if (!empty($request->representative['date_of_birth'])) {
+                $representativeAge = Carbon::parse($request->representative['date_of_birth'])->age;
+                if ($representativeAge < 18) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Representative must be 18 years or above. The provided representative is ' . $representativeAge . ' years old.',
+                        'errors' => ['representative.date_of_birth' => ['Representative must be 18 years or above.']]
+                    ], 422);
+                }
+            }
         }
         
         // Check scheme age restriction
-        if ($scheme->has_age_restriction && $age < $scheme->minimum_age) {
+        if ($scheme->has_age_restriction && $age !== null && $age < $scheme->minimum_age) {
             return response()->json([
                 'success' => false,
                 'message' => 'This scheme requires minimum age of ' . $scheme->minimum_age . ' years.',
@@ -522,6 +664,14 @@ class BeneficiaryController extends Controller
         $validated['submitted_by'] = auth()->id();
         $validated['submitted_at'] = now();
         $validated['status'] = 'submitted';
+        
+        // Convert empty CNIC string to null if CNIC is not required
+        if (!in_array('cnic', $beneficiaryRequiredFields) && (empty($validated['cnic']) || trim($validated['cnic']) === '')) {
+            $validated['cnic'] = null;
+        } else if (!empty($validated['cnic'])) {
+            // Trim and normalize CNIC if provided
+            $validated['cnic'] = trim($validated['cnic']);
+        }
 
         $beneficiary = Beneficiary::create($validated);
 
@@ -606,7 +756,7 @@ class BeneficiaryController extends Controller
 
     public function getDetails(Beneficiary $beneficiary)
     {
-        $beneficiary->load(['scheme', 'schemeCategory', 'localZakatCommittee', 'representative', 'phase.district']);
+        $beneficiary->load(['scheme', 'schemeCategory', 'localZakatCommittee', 'institution', 'representative', 'phase.district']);
         return response()->json([
             'success' => true,
             'beneficiary' => [
@@ -625,6 +775,9 @@ class BeneficiaryController extends Controller
                 'scheme_category_name' => $beneficiary->schemeCategory->name ?? 'N/A',
                 'local_zakat_committee_id' => $beneficiary->local_zakat_committee_id,
                 'local_zakat_committee_name' => $beneficiary->localZakatCommittee->name ?? 'N/A',
+                'institution_id' => $beneficiary->institution_id,
+                'institution_name' => $beneficiary->institution->name ?? 'N/A',
+                'class' => $beneficiary->class,
                 'requires_representative' => $beneficiary->requires_representative,
                 'representative' => $beneficiary->representative ? [
                     'cnic' => $beneficiary->representative->cnic,
@@ -650,102 +803,171 @@ class BeneficiaryController extends Controller
     public function storeAjax(Request $request)
     {
         try {
+            // Get scheme to determine validation rules
+            $scheme = Scheme::findOrFail($request->scheme_id);
+            $isInstitutional = $scheme->is_institutional ?? false;
+            $beneficiaryRequiredFields = $scheme->beneficiary_required_fields ?? [];
+            $allowsRepresentative = $scheme->allows_representative ?? false;
+            
+            // Normalize CNIC: convert empty strings to null if CNIC is not required
+            if (!in_array('cnic', $beneficiaryRequiredFields) && $request->has('cnic') && (empty($request->cnic) || trim($request->cnic) === '')) {
+                $request->merge(['cnic' => null]);
+            }
+            
             // First, do custom validation before Laravel's unique rule
             // This allows us to check normalized CNICs and provide better error messages
             $phase = Phase::with(['installment.fundAllocation.financialYear'])->findOrFail($request->phase_id);
             
-            // Normalize CNIC for comparison
-            $inputCnic = trim($request->cnic);
-            $normalizedInputCnic = str_replace(['-', ' '], '', $inputCnic);
+            // Normalize CNIC for comparison (only if CNIC is provided)
+            $inputCnic = $request->cnic ? trim($request->cnic) : null;
+            $normalizedInputCnic = $inputCnic ? str_replace(['-', ' '], '', $inputCnic) : null;
             
-            // Check if CNIC already exists in the same phase and scheme (with normalized comparison)
-            $existingInSamePhaseScheme = Beneficiary::where('phase_id', $request->phase_id)
-                ->where('scheme_id', $request->scheme_id)
-                ->where(function($query) use ($inputCnic, $normalizedInputCnic) {
-                    $query->where('cnic', $inputCnic)
-                          ->orWhere('cnic', $normalizedInputCnic)
-                          ->orWhereRaw('TRIM(cnic) = ?', [$inputCnic])
-                          ->orWhereRaw('TRIM(REPLACE(REPLACE(cnic, "-", ""), " ", "")) = ?', [$normalizedInputCnic]);
-                })
-                ->first();
-            
-            if ($existingInSamePhaseScheme) {
-                // Get details for duplicate in same phase/scheme
-                $existingBeneficiary = Beneficiary::where('id', $existingInSamePhaseScheme->id)
-                    ->with(['phase.scheme', 'phase.district', 'scheme', 'localZakatCommittee'])
+            // Check if CNIC already exists in the same phase and scheme (only if CNIC is provided and required)
+            if (!empty($inputCnic) && in_array('cnic', $beneficiaryRequiredFields)) {
+                $existingInSamePhaseScheme = Beneficiary::where('phase_id', $request->phase_id)
+                    ->where('scheme_id', $request->scheme_id)
+                    ->where(function($query) use ($inputCnic, $normalizedInputCnic) {
+                        $query->where('cnic', $inputCnic)
+                              ->orWhere('cnic', $normalizedInputCnic)
+                              ->orWhereRaw('TRIM(cnic) = ?', [$inputCnic])
+                              ->orWhereRaw('TRIM(REPLACE(REPLACE(cnic, "-", ""), " ", "")) = ?', [$normalizedInputCnic]);
+                    })
                     ->first();
                 
-                $financialYear = $phase->installment->fundAllocation->financialYear;
-                
-                return response()->json([
-                    'success' => false,
-                    'error_type' => 'duplicate_cnic',
-                    'message' => 'This CNIC is already registered in this phase and scheme.',
-                    'duplicate_details' => [
-                        'cnic' => $existingBeneficiary ? $existingBeneficiary->cnic : $inputCnic,
-                        'full_name' => $existingBeneficiary ? $existingBeneficiary->full_name : 'N/A',
-                        'scheme_name' => $existingBeneficiary && $existingBeneficiary->scheme ? $existingBeneficiary->scheme->name : 'N/A',
-                        'phase_name' => $existingBeneficiary && $existingBeneficiary->phase ? $existingBeneficiary->phase->name : 'N/A',
-                        'district_name' => $existingBeneficiary && $existingBeneficiary->phase && $existingBeneficiary->phase->district ? $existingBeneficiary->phase->district->name : 'N/A',
-                        'committee_name' => $existingBeneficiary && $existingBeneficiary->localZakatCommittee ? $existingBeneficiary->localZakatCommittee->name : 'N/A',
-                        'status' => $existingBeneficiary ? ucfirst($existingBeneficiary->status) : 'N/A',
-                        'financial_year' => $financialYear ? $financialYear->name : 'N/A',
-                        'registered_date' => $existingBeneficiary && $existingBeneficiary->created_at ? $existingBeneficiary->created_at->format('d M Y, h:i A') : 'N/A',
-                    ]
-                ], 422);
+                if ($existingInSamePhaseScheme) {
+                    // Get details for duplicate in same phase/scheme
+                    $existingBeneficiary = Beneficiary::where('id', $existingInSamePhaseScheme->id)
+                        ->with(['phase.scheme', 'phase.district', 'scheme', 'localZakatCommittee'])
+                        ->first();
+                    
+                    $financialYear = $phase->installment->fundAllocation->financialYear;
+                    
+                    return response()->json([
+                        'success' => false,
+                        'error_type' => 'duplicate_cnic',
+                        'message' => 'This CNIC is already registered in this phase and scheme.',
+                        'duplicate_details' => [
+                            'cnic' => $existingBeneficiary ? $existingBeneficiary->cnic : $inputCnic,
+                            'full_name' => $existingBeneficiary ? $existingBeneficiary->full_name : 'N/A',
+                            'scheme_name' => $existingBeneficiary && $existingBeneficiary->scheme ? $existingBeneficiary->scheme->name : 'N/A',
+                            'phase_name' => $existingBeneficiary && $existingBeneficiary->phase ? $existingBeneficiary->phase->name : 'N/A',
+                            'district_name' => $existingBeneficiary && $existingBeneficiary->phase && $existingBeneficiary->phase->district ? $existingBeneficiary->phase->district->name : 'N/A',
+                            'committee_name' => $existingBeneficiary && $existingBeneficiary->localZakatCommittee ? $existingBeneficiary->localZakatCommittee->name : 'N/A',
+                            'status' => $existingBeneficiary ? ucfirst($existingBeneficiary->status) : 'N/A',
+                            'financial_year' => $financialYear ? $financialYear->name : 'N/A',
+                            'registered_date' => $existingBeneficiary && $existingBeneficiary->created_at ? $existingBeneficiary->created_at->format('d M Y, h:i A') : 'N/A',
+                        ]
+                    ], 422);
+                }
             }
             
-            $validated = $request->validate([
+            // Build validation rules dynamically based on scheme settings
+            $rules = [
                 'phase_id' => 'required|exists:phases,id',
                 'scheme_id' => 'required|exists:schemes,id',
                 'scheme_category_id' => 'nullable|exists:scheme_categories,id',
-                'local_zakat_committee_id' => 'required|exists:local_zakat_committees,id',
-                'cnic' => [
-                    'required',
-                    'string',
-                ],
-                'full_name' => 'required|string|max:255',
-                'father_husband_name' => 'required|string|max:255',
-                'mobile_number' => 'nullable|string|max:20',
-                'date_of_birth' => 'required|date',
-                'gender' => 'required|in:male,female,other',
                 'amount' => 'required|numeric|min:0',
                 'requires_representative' => 'boolean',
-                'representative' => 'required_if:requires_representative,1|array',
-                'representative.cnic' => 'required_if:requires_representative,1|string',
-                'representative.full_name' => 'required_if:requires_representative,1|string|max:255',
-                'representative.father_husband_name' => 'required_if:requires_representative,1|string|max:255',
+                'representative' => 'nullable|array',
+                'representative.cnic' => 'nullable|string',
+                'representative.full_name' => 'nullable|string|max:255',
+                'representative.father_husband_name' => 'nullable|string|max:255',
                 'representative.mobile_number' => 'nullable|string|max:20',
-                'representative.date_of_birth' => 'required_if:requires_representative,1|date',
-                'representative.gender' => 'required_if:requires_representative,1|in:male,female,other',
-                'representative.relationship' => 'required_if:requires_representative,1|string|max:255',
-            ]);
+                'representative.date_of_birth' => 'nullable|date',
+                'representative.gender' => 'nullable|in:male,female,other',
+                'representative.relationship' => 'nullable|string|max:255',
+                'class' => 'nullable|string|max:255',
+            ];
+            
+            // Add LZC or Institution validation based on scheme type
+            if ($isInstitutional) {
+                $rules['institution_id'] = 'required|exists:institutions,id';
+                if ($scheme->institutional_type === 'educational') {
+                    $rules['class'] = 'required|string|max:255';
+                }
+            } else {
+                $rules['local_zakat_committee_id'] = 'required|exists:local_zakat_committees,id';
+            }
+            
+            // Add field validation based on beneficiary_required_fields
+            if (in_array('cnic', $beneficiaryRequiredFields)) {
+                $rules['cnic'] = [
+                    'required',
+                    'string',
+                ];
+            } else {
+                // CNIC is optional - allow nullable, but if provided, it should be unique
+                $rules['cnic'] = [
+                    'nullable',
+                    'string',
+                ];
+            }
+            
+            if (in_array('full_name', $beneficiaryRequiredFields)) {
+                $rules['full_name'] = 'required|string|max:255';
+            } else {
+                $rules['full_name'] = 'nullable|string|max:255';
+            }
+            
+            if (in_array('father_husband_name', $beneficiaryRequiredFields)) {
+                $rules['father_husband_name'] = 'required|string|max:255';
+            } else {
+                $rules['father_husband_name'] = 'nullable|string|max:255';
+            }
+            
+            if (in_array('mobile_number', $beneficiaryRequiredFields)) {
+                $rules['mobile_number'] = 'required|string|max:20';
+            } else {
+                $rules['mobile_number'] = 'nullable|string|max:20';
+            }
+            
+            if (in_array('date_of_birth', $beneficiaryRequiredFields)) {
+                $rules['date_of_birth'] = 'required|date';
+            } else {
+                $rules['date_of_birth'] = 'nullable|date';
+            }
+            
+            if (in_array('gender', $beneficiaryRequiredFields)) {
+                $rules['gender'] = 'required|in:male,female,other';
+            } else {
+                $rules['gender'] = 'nullable|in:male,female,other';
+            }
+            
+            $validated = $request->validate($rules);
 
-            // Check 1: Check if CNIC matches any active LZC member (regardless of committee) - with normalized CNIC
-            $activeLZCMember = LZCMember::where(function($query) use ($inputCnic, $normalizedInputCnic) {
-                    $query->where('cnic', $inputCnic)
-                          ->orWhere('cnic', $normalizedInputCnic)
-                          ->orWhereRaw('TRIM(cnic) = ?', [$inputCnic])
-                          ->orWhereRaw('TRIM(REPLACE(REPLACE(cnic, "-", ""), " ", "")) = ?', [$normalizedInputCnic]);
-                })
-                ->where('is_active', true)
-                ->where(function($q) {
-                    $q->whereNull('end_date')
-                      ->orWhere('end_date', '>=', now()->toDateString());
-                })
-                ->first();
-
-            if ($activeLZCMember) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Active LZC Members are not eligible for any scheme. The member must be inactive to be eligible.'
-                ], 422);
+            // For institution users, always force institution_id to the logged-in user's institution
+            $user = auth()->user();
+            if ($isInstitutional && $user->isInstitutionUser() && $user->institution) {
+                $validated['institution_id'] = $user->institution_id;
             }
 
-            // Check 2: Check if CNIC already exists in any scheme for the same financial year
+            // Check 1: Check if CNIC matches any active LZC member (only if CNIC is mandatory)
+            if (in_array('cnic', $beneficiaryRequiredFields) && !empty($validated['cnic'])) {
+                $activeLZCMember = LZCMember::where(function($query) use ($inputCnic, $normalizedInputCnic) {
+                        $query->where('cnic', $inputCnic)
+                              ->orWhere('cnic', $normalizedInputCnic)
+                              ->orWhereRaw('TRIM(cnic) = ?', [$inputCnic])
+                              ->orWhereRaw('TRIM(REPLACE(REPLACE(cnic, "-", ""), " ", "")) = ?', [$normalizedInputCnic]);
+                    })
+                    ->where('is_active', true)
+                    ->where(function($q) {
+                        $q->whereNull('end_date')
+                          ->orWhere('end_date', '>=', now()->toDateString());
+                    })
+                    ->first();
+
+                if ($activeLZCMember) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Active LZC Members are not eligible for any scheme. The member must be inactive to be eligible.'
+                    ], 422);
+                }
+            }
+
+            // Check 2: Check if CNIC already exists in any scheme for the same financial year (only if CNIC is mandatory)
             $financialYear = $phase->installment->fundAllocation->financialYear;
             
-            if ($financialYear) {
+            if ($financialYear && in_array('cnic', $beneficiaryRequiredFields) && !empty($validated['cnic'])) {
                 // Get all phases in the same financial year
                 $phasesInFinancialYear = Phase::whereHas('installment.fundAllocation', function($query) use ($financialYear) {
                     $query->where('financial_year_id', $financialYear->id);
@@ -818,7 +1040,7 @@ class BeneficiaryController extends Controller
             // Note: Duplicate check in same phase/scheme is already done earlier before validation
 
             $scheme = Scheme::with('categories')->findOrFail($validated['scheme_id']);
-            $age = Carbon::parse($validated['date_of_birth'])->age;
+            $age = !empty($validated['date_of_birth']) ? Carbon::parse($validated['date_of_birth'])->age : null;
             
             // Check Phase Limits FIRST (before scheme-level checks)
             // The phase is already loaded at the beginning of the method
@@ -902,25 +1124,59 @@ class BeneficiaryController extends Controller
                 $validated['amount'] = $category->amount;
             }
             
-            if ($scheme->has_age_restriction && $age < $scheme->minimum_age) {
-                if (!$validated['requires_representative']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'This scheme requires minimum age of ' . $scheme->minimum_age . ' years. Please add a representative.'
-                    ], 422);
+            // Check age restrictions and representative requirements (only if date_of_birth is provided)
+            if ($age !== null) {
+                if ($scheme->has_age_restriction && $age < $scheme->minimum_age) {
+                    // If scheme has age restriction and doesn't allow representative, < minimum_age beneficiaries are not eligible
+                    if (!$allowsRepresentative) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'This scheme has age restriction (minimum age: ' . $scheme->minimum_age . ') and does not allow representatives. Beneficiaries below ' . $scheme->minimum_age . ' years are not eligible for this scheme.'
+                        ], 422);
+                    }
+                    // If scheme allows representative, require it
+                    if (!$validated['requires_representative']) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'This scheme requires minimum age of ' . $scheme->minimum_age . ' years. Please add a representative.'
+                        ], 422);
+                    }
                 }
-            }
-            
-            if (!$scheme->has_age_restriction && $age < 18) {
-                if (!$validated['requires_representative']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Beneficiaries under 18 require a representative for JazzCash transactions.'
-                    ], 422);
+                
+                // If scheme doesn't have age restriction but allows representative, require representative for < 18 (for JazzCash)
+                if (!$scheme->has_age_restriction && $allowsRepresentative && $age < 18) {
+                    if (!$validated['requires_representative']) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Beneficiaries under 18 require a representative for JazzCash transactions.'
+                        ], 422);
+                    }
                 }
+                
+                // If scheme doesn't have age restriction and doesn't allow representative, < 18 beneficiaries are allowed without representative
             }
 
             // Note: Phase limits are already checked earlier before scheme-level checks
+
+            // Convert empty CNIC string to null if CNIC is not required
+            if (!in_array('cnic', $beneficiaryRequiredFields) && (empty($validated['cnic']) || trim($validated['cnic']) === '')) {
+                $validated['cnic'] = null;
+            } else if (!empty($validated['cnic'])) {
+                // Trim and normalize CNIC if provided
+                $validated['cnic'] = trim($validated['cnic']);
+            }
+
+            // Validate representative age if representative is required
+            if ($validated['requires_representative'] && isset($validated['representative']) && !empty($validated['representative']['date_of_birth'])) {
+                $representativeAge = Carbon::parse($validated['representative']['date_of_birth'])->age;
+                if ($representativeAge < 18) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Representative must be 18 years or above. The provided representative is ' . $representativeAge . ' years old.',
+                        'errors' => ['representative.date_of_birth' => ['Representative must be 18 years or above.']]
+                    ], 422);
+                }
+            }
 
             $beneficiary = Beneficiary::create($validated);
 
@@ -1065,6 +1321,12 @@ class BeneficiaryController extends Controller
             $scheme = Scheme::with('categories')->findOrFail($request->scheme_id);
             $financialYear = $phase->installment->fundAllocation->financialYear;
             
+            // Get scheme settings
+            $isInstitutional = $scheme->is_institutional ?? false;
+            $institutionalType = $scheme->institutional_type ?? null;
+            $beneficiaryRequiredFields = $scheme->beneficiary_required_fields ?? [];
+            $allowsRepresentative = $scheme->allows_representative ?? false;
+            
             // Normalize CNIC for comparison
             $inputCnic = trim($request->cnic);
             $normalizedInputCnic = str_replace(['-', ' '], '', $inputCnic);
@@ -1112,30 +1374,57 @@ class BeneficiaryController extends Controller
                 }
             }
             
-            $validated = $request->validate([
+            // Build dynamic validation rules based on scheme settings
+            $rules = [
                 'scheme_id' => 'required|exists:schemes,id',
                 'scheme_category_id' => 'nullable|exists:scheme_categories,id',
-                'local_zakat_committee_id' => 'required|exists:local_zakat_committees,id',
-                'cnic' => [
-                    'required',
-                    'string',
-                ],
-                'full_name' => 'required|string|max:255',
-                'father_husband_name' => 'required|string|max:255',
-                'mobile_number' => 'nullable|string|max:20',
-                'date_of_birth' => 'required|date',
-                'gender' => 'required|in:male,female,other',
-                'amount' => 'required|numeric|min:0',
-                'requires_representative' => 'boolean',
-                'representative' => 'required_if:requires_representative,1|array',
-                'representative.cnic' => 'required_if:requires_representative,1|string',
-                'representative.full_name' => 'required_if:requires_representative,1|string|max:255',
-                'representative.father_husband_name' => 'required_if:requires_representative,1|string|max:255',
-                'representative.mobile_number' => 'nullable|string|max:20',
-                'representative.date_of_birth' => 'required_if:requires_representative,1|date',
-                'representative.gender' => 'required_if:requires_representative,1|in:male,female,other',
-                'representative.relationship' => 'required_if:requires_representative,1|string|max:255',
-            ]);
+            ];
+            
+            // Conditional validation for LZC or Institution
+            if ($isInstitutional) {
+                $rules['institution_id'] = 'required|exists:institutions,id';
+                // Add class validation for educational schemes
+                if ($institutionalType === 'educational') {
+                    $rules['class'] = 'required|string|max:255';
+                }
+            } else {
+                $rules['local_zakat_committee_id'] = 'required|exists:local_zakat_committees,id';
+            }
+            
+            // Dynamic validation for beneficiary fields based on required_fields
+            $rules['cnic'] = in_array('cnic', $beneficiaryRequiredFields) ? 'required|string' : 'nullable|string';
+            $rules['full_name'] = in_array('full_name', $beneficiaryRequiredFields) ? 'required|string|max:255' : 'nullable|string|max:255';
+            $rules['father_husband_name'] = in_array('father_husband_name', $beneficiaryRequiredFields) ? 'required|string|max:255' : 'nullable|string|max:255';
+            $rules['mobile_number'] = in_array('mobile_number', $beneficiaryRequiredFields) ? 'required|string|max:20' : 'nullable|string|max:20';
+            $rules['date_of_birth'] = in_array('date_of_birth', $beneficiaryRequiredFields) ? 'required|date' : 'nullable|date';
+            $rules['gender'] = in_array('gender', $beneficiaryRequiredFields) ? 'required|in:male,female,other' : 'nullable|in:male,female,other';
+            
+            $rules['amount'] = 'required|numeric|min:0';
+            $rules['requires_representative'] = 'boolean';
+            $rules['representative'] = 'required_if:requires_representative,1|array';
+            $rules['representative.cnic'] = 'required_if:requires_representative,1|string';
+            $rules['representative.full_name'] = 'required_if:requires_representative,1|string|max:255';
+            $rules['representative.father_husband_name'] = 'required_if:requires_representative,1|string|max:255';
+            $rules['representative.mobile_number'] = 'nullable|string|max:20';
+            $rules['representative.date_of_birth'] = 'required_if:requires_representative,1|date';
+            $rules['representative.gender'] = 'required_if:requires_representative,1|in:male,female,other';
+            $rules['representative.relationship'] = 'required_if:requires_representative,1|string|max:255';
+            
+            $validated = $request->validate($rules);
+
+            // For institution users, always force institution_id to the logged-in user's institution
+            $user = auth()->user();
+            if ($isInstitutional && $user->isInstitutionUser() && $user->institution) {
+                $validated['institution_id'] = $user->institution_id;
+            }
+            
+            // Convert empty CNIC string to null if CNIC is not required
+            if (!in_array('cnic', $beneficiaryRequiredFields) && (empty($validated['cnic']) || trim($validated['cnic']) === '')) {
+                $validated['cnic'] = null;
+            } else if (!empty($validated['cnic'])) {
+                // Trim and normalize CNIC if provided
+                $validated['cnic'] = trim($validated['cnic']);
+            }
 
             if ($validated['scheme_category_id']) {
                 $category = SchemeCategory::findOrFail($validated['scheme_category_id']);
@@ -1327,6 +1616,29 @@ class BeneficiaryController extends Controller
                         ], 422);
                     }
                 }
+            }
+
+            // Validate representative age if representative is required
+            if ($validated['requires_representative'] && isset($validated['representative']) && !empty($validated['representative']['date_of_birth'])) {
+                $representativeAge = Carbon::parse($validated['representative']['date_of_birth'])->age;
+                if ($representativeAge < 18) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Representative must be 18 years or above. The provided representative is ' . $representativeAge . ' years old.',
+                        'errors' => ['representative.date_of_birth' => ['Representative must be 18 years or above.']]
+                    ], 422);
+                }
+            }
+            
+            // Handle institutional vs non-institutional schemes
+            if ($isInstitutional) {
+                // For institutional schemes, set local_zakat_committee_id to null
+                $validated['local_zakat_committee_id'] = null;
+                // institution_id and class are already in validated array
+            } else {
+                // For non-institutional schemes, set institution_id and class to null
+                $validated['institution_id'] = null;
+                $validated['class'] = null;
             }
 
             $beneficiary->update($validated);

@@ -4,6 +4,10 @@
 @section('page_title', 'Add User')
 @section('breadcrumb', 'Add User')
 
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+@endpush
+
 @section('content')
 <div class="row">
     <div class="col-lg-12">
@@ -52,6 +56,7 @@
                                 @if(auth()->user()->isSuperAdmin())
                                     <option value="super_admin" {{ old('role') === 'super_admin' ? 'selected' : '' }}>Super Admin</option>
                                     <option value="administrator_hq" {{ old('role') === 'administrator_hq' ? 'selected' : '' }}>Administrator HQ</option>
+                                    <option value="institution" {{ old('role') === 'institution' ? 'selected' : '' }}>Institution</option>
                                 @endif
                                 <option value="district_user" {{ old('role') === 'district_user' ? 'selected' : '' }}>District User</option>
                             </select>
@@ -76,6 +81,25 @@
                                 <div class="text-danger">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-6 mb-3" id="institutionField" style="display: none;">
+                            <label class="form-label">Institution <span class="text-danger">*</span></label>
+                            <select name="institution_id" id="institution_id" class="form-control select2-institution">
+                                <option value="">Select Institution</option>
+                                @isset($institutions)
+                                    @foreach($institutions as $institution)
+                                        <option value="{{ $institution->id }}"
+                                            data-district-id="{{ $institution->district_id }}"
+                                            {{ old('institution_id') == $institution->id ? 'selected' : '' }}>
+                                            {{ $institution->name }} ({{ $institution->district->name ?? 'N/A' }})
+                                        </option>
+                                    @endforeach
+                                @endisset
+                            </select>
+                            @error('institution_id')
+                                <div class="text-danger">{{ $message }}</div>
+                            @enderror
+                            <small class="text-muted">Only institutions within the selected district will be available.</small>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-12">
@@ -90,10 +114,31 @@
 </div>
 
 @push('scripts')
+@php
+    $institutionOptions = isset($institutions)
+        ? $institutions->map(function ($institution) {
+            return [
+                'id' => $institution->id,
+                'text' => $institution->name . ' (' . ($institution->district->name ?? 'N/A') . ')',
+                'district_id' => $institution->district_id,
+            ];
+        })->values()
+        : collect();
+@endphp
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
+    const allInstitutions = @json($institutionOptions);
+
     $(document).ready(function() {
+        // Initialize Select2 for institution dropdown
+        $('.select2-institution').select2({
+            placeholder: 'Select Institution',
+            width: '100%'
+        });
+
         $('#role').on('change', function() {
-            if ($(this).val() === 'district_user') {
+            const role = $(this).val();
+            if (role === 'district_user' || role === 'institution') {
                 $('#districtField').show();
                 $('#district_id').prop('required', true);
             } else {
@@ -101,12 +146,63 @@
                 $('#district_id').prop('required', false);
                 $('#district_id').val('');
             }
+
+            if (role === 'institution') {
+                $('#institutionField').show();
+                $('#institution_id').prop('required', true);
+            } else {
+                $('#institutionField').hide();
+                $('#institution_id').prop('required', false);
+                $('#institution_id').val('');
+            }
+
+            filterInstitutionsByDistrict();
+        });
+
+        function filterInstitutionsByDistrict() {
+            const selectedDistrictId = $('#district_id').val();
+            const role = $('#role').val();
+
+            if (role === 'institution') {
+                $('#institutionField').show();
+                $('#institution_id').prop('required', true);
+
+                const hasDistrict = !!selectedDistrictId;
+                $('#institution_id').prop('disabled', !hasDistrict);
+
+                // Clear current options and rebuild based on district
+                const $inst = $('#institution_id');
+                $inst.empty();
+                $inst.append(new Option('Select Institution', '', false, false));
+
+                if (hasDistrict) {
+                    allInstitutions.forEach(function (inst) {
+                        if (inst.district_id == selectedDistrictId) {
+                            const opt = new Option(inst.text, inst.id, false, false);
+                            $inst.append(opt);
+                        }
+                    });
+                }
+
+                $inst.val('').trigger('change.select2');
+            }
+        }
+
+        $('#district_id').on('change', function () {
+            // Reset selected institution when district changes
+            $('#institution_id').val('');
+            filterInstitutionsByDistrict();
         });
 
         // Trigger on page load if old value exists
-        if ($('#role').val() === 'district_user') {
+        if ($('#role').val() === 'district_user' || $('#role').val() === 'institution') {
             $('#districtField').show();
             $('#district_id').prop('required', true);
+        }
+        if ($('#role').val() === 'institution') {
+            $('#institutionField').show();
+            $('#institution_id').prop('required', true);
+            filterInstitutionsByDistrict();
         }
     });
 </script>

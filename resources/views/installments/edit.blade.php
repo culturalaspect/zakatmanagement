@@ -212,13 +212,13 @@
                                     </div>
                                     <div class="col-md-3 mb-3">
                                         <label class="form-label">Total Beneficiaries <span class="text-danger">*</span></label>
-                                        <input type="number" name="district_quotas[${currentQuotaIndex}][total_beneficiaries]" class="form-control beneficiaries-input" data-quota-index="${currentQuotaIndex}" step="0.1" min="0" value="${quotaData.total_beneficiaries || ''}" required readonly>
-                                        <small class="text-muted">Auto-calculated</small>
+                                        <input type="number" name="district_quotas[${currentQuotaIndex}][total_beneficiaries]" class="form-control beneficiaries-input" data-quota-index="${currentQuotaIndex}" step="0.1" min="0" value="${quotaData.total_beneficiaries || ''}" required>
+                                        <small class="text-muted">Auto-calculated (editable)</small>
                                     </div>
                                     <div class="col-md-3 mb-3">
                                         <label class="form-label">Total Amount Share</label>
-                                        <input type="text" class="form-control district-amount-display" data-quota-index="${currentQuotaIndex}" value="Rs. ${parseFloat(quotaData.total_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly>
-                                        <small class="text-muted">Auto-calculated</small>
+                                        <input type="number" name="district_quotas[${currentQuotaIndex}][total_amount]" class="form-control district-amount-input" data-quota-index="${currentQuotaIndex}" step="0.01" min="0" value="${quotaData.total_amount || ''}">
+                                        <small class="text-muted">Auto-calculated (editable)</small>
                                     </div>
                                 </div>
                                 
@@ -286,16 +286,16 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label small">Percentage</label>
-                                        <input type="number" name="district_quotas[${currentQuotaIndex}][scheme_distributions][${currentDistributionIndex}][percentage]" class="form-control scheme-percentage-input" data-quota-index="${currentQuotaIndex}" data-distribution-index="${currentDistributionIndex}" step="0.01" min="0" max="100" value="${schemeData.percentage || ''}" required readonly>
-                                        <small class="text-muted">Auto-filled</small>
+                                        <input type="number" name="district_quotas[${currentQuotaIndex}][scheme_distributions][${currentDistributionIndex}][percentage]" class="form-control scheme-percentage-input" data-quota-index="${currentQuotaIndex}" data-distribution-index="${currentDistributionIndex}" step="0.01" min="0" max="100" value="${schemeData.percentage || ''}" required>
+                                        <small class="text-muted">Auto-filled (editable)</small>
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label small">Beneficiaries</label>
-                                        <input type="number" name="district_quotas[${currentQuotaIndex}][scheme_distributions][${currentDistributionIndex}][beneficiaries_count]" class="form-control scheme-beneficiaries-display" data-quota-index="${currentQuotaIndex}" data-distribution-index="${currentDistributionIndex}" step="0.1" min="0" value="${schemeData.beneficiaries_count || ''}" readonly>
+                                        <input type="number" name="district_quotas[${currentQuotaIndex}][scheme_distributions][${currentDistributionIndex}][beneficiaries_count]" class="form-control scheme-beneficiaries-input" data-quota-index="${currentQuotaIndex}" data-distribution-index="${currentDistributionIndex}" step="0.1" min="0" value="${schemeData.beneficiaries_count || ''}">
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label small">Amount Share</label>
-                                        <input type="text" class="form-control scheme-amount-display" data-quota-index="${currentQuotaIndex}" data-distribution-index="${currentDistributionIndex}" value="Rs. ${parseFloat(schemeData.amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly>
+                                        <input type="number" name="district_quotas[${currentQuotaIndex}][scheme_distributions][${currentDistributionIndex}][amount]" class="form-control scheme-amount-input" data-quota-index="${currentQuotaIndex}" data-distribution-index="${currentDistributionIndex}" step="0.01" min="0" value="${schemeData.amount || ''}">
                                     </div>
                                     <div class="col-md-1">
                                         <label class="form-label small">&nbsp;</label>
@@ -386,13 +386,13 @@
                             </div>
                             <div class="col-md-3 mb-3">
                                 <label class="form-label">Total Beneficiaries <span class="text-danger">*</span></label>
-                                <input type="number" name="district_quotas[${districtQuotaIndex}][total_beneficiaries]" class="form-control beneficiaries-input" data-quota-index="${districtQuotaIndex}" step="0.1" min="0" required readonly>
-                                <small class="text-muted">Auto-calculated</small>
+                                <input type="number" name="district_quotas[${districtQuotaIndex}][total_beneficiaries]" class="form-control beneficiaries-input" data-quota-index="${districtQuotaIndex}" step="0.1" min="0" required>
+                                <small class="text-muted">Auto-calculated (editable)</small>
                             </div>
                             <div class="col-md-3 mb-3">
                                 <label class="form-label">Total Amount Share</label>
-                                <input type="text" class="form-control district-amount-display" data-quota-index="${districtQuotaIndex}" readonly>
-                                <small class="text-muted">Auto-calculated</small>
+                                <input type="number" name="district_quotas[${districtQuotaIndex}][total_amount]" class="form-control district-amount-input" data-quota-index="${districtQuotaIndex}" step="0.01" min="0">
+                                <small class="text-muted">Auto-calculated (editable)</small>
                             </div>
                         </div>
                         
@@ -496,11 +496,17 @@
             
             if (percentage > 0 && population > 0) {
                 const totalBeneficiaries = (percentage / 100) * population;
-                $(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`).val(totalBeneficiaries.toFixed(1));
+                const beneficiariesField = $(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`);
+                if (!beneficiariesField.data('manually-edited')) {
+                    beneficiariesField.val(totalBeneficiaries.toFixed(1));
+                }
                 
                 if (installmentAmount > 0) {
                     const districtAmount = (installmentAmount * percentage) / 100;
-                    $(`.district-amount-display[data-quota-index="${quotaIndex}"]`).val('Rs. ' + districtAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    const amountField = $(`.district-amount-input[data-quota-index="${quotaIndex}"]`);
+                    if (!amountField.data('manually-edited')) {
+                        amountField.val(districtAmount.toFixed(2));
+                    }
                 }
                 
                 recalculateSchemeDistributions(quotaIndex);
@@ -569,16 +575,16 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small">Percentage</label>
-                        <input type="number" name="district_quotas[${quotaIndex}][scheme_distributions][${schemeDistributionIndex[quotaIndex]}][percentage]" class="form-control scheme-percentage-input" data-quota-index="${quotaIndex}" data-distribution-index="${schemeDistributionIndex[quotaIndex]}" step="0.01" min="0" max="100" required readonly>
-                        <small class="text-muted">Auto-filled</small>
+                        <input type="number" name="district_quotas[${quotaIndex}][scheme_distributions][${schemeDistributionIndex[quotaIndex]}][percentage]" class="form-control scheme-percentage-input" data-quota-index="${quotaIndex}" data-distribution-index="${schemeDistributionIndex[quotaIndex]}" step="0.01" min="0" max="100" required>
+                        <small class="text-muted">Auto-filled (editable)</small>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small">Beneficiaries</label>
-                        <input type="number" name="district_quotas[${quotaIndex}][scheme_distributions][${schemeDistributionIndex[quotaIndex]}][beneficiaries_count]" class="form-control scheme-beneficiaries-display" data-quota-index="${quotaIndex}" data-distribution-index="${schemeDistributionIndex[quotaIndex]}" step="0.1" min="0" readonly>
+                        <input type="number" name="district_quotas[${quotaIndex}][scheme_distributions][${schemeDistributionIndex[quotaIndex]}][beneficiaries_count]" class="form-control scheme-beneficiaries-input" data-quota-index="${quotaIndex}" data-distribution-index="${schemeDistributionIndex[quotaIndex]}" step="0.1" min="0">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small">Amount Share</label>
-                        <input type="text" class="form-control scheme-amount-display" data-quota-index="${quotaIndex}" data-distribution-index="${schemeDistributionIndex[quotaIndex]}" readonly>
+                        <input type="number" name="district_quotas[${quotaIndex}][scheme_distributions][${schemeDistributionIndex[quotaIndex]}][amount]" class="form-control scheme-amount-input" data-quota-index="${quotaIndex}" data-distribution-index="${schemeDistributionIndex[quotaIndex]}" step="0.01" min="0">
                     </div>
                     <div class="col-md-1">
                         <label class="form-label small">&nbsp;</label>
@@ -722,19 +728,31 @@
             
             if (percentage > 0 && population > 0) {
                 const totalBeneficiaries = (percentage / 100) * population;
-                $(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`).val(totalBeneficiaries.toFixed(1));
+                const beneficiariesField = $(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`);
+                if (!beneficiariesField.data('manually-edited')) {
+                    beneficiariesField.val(totalBeneficiaries.toFixed(1));
+                }
                 
                 // Calculate and display district total amount
                 if (installmentAmount > 0) {
                     const districtAmount = (installmentAmount * percentage) / 100;
-                    $(`.district-amount-display[data-quota-index="${quotaIndex}"]`).val('Rs. ' + districtAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    const amountField = $(`.district-amount-input[data-quota-index="${quotaIndex}"]`);
+                    if (!amountField.data('manually-edited')) {
+                        amountField.val(districtAmount.toFixed(2));
+                    }
                 }
                 
                 // Recalculate scheme distributions for this district
                 recalculateSchemeDistributions(quotaIndex);
             } else {
-                $(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`).val('');
-                $(`.district-amount-display[data-quota-index="${quotaIndex}"]`).val('');
+                const beneficiariesField = $(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`);
+                const amountField = $(`.district-amount-input[data-quota-index="${quotaIndex}"]`);
+                if (!beneficiariesField.data('manually-edited')) {
+                    beneficiariesField.val('');
+                }
+                if (!amountField.data('manually-edited')) {
+                    amountField.val('');
+                }
             }
             
             // Update district quota preview
@@ -757,13 +775,33 @@
                 const percentage = parseFloat($(this).val()) || 0;
                 if (percentage > 0 && installmentAmount > 0) {
                     const districtAmount = (installmentAmount * percentage) / 100;
-                    $(`.district-amount-display[data-quota-index="${quotaIndex}"]`).val('Rs. ' + districtAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    const amountField = $(`.district-amount-input[data-quota-index="${quotaIndex}"]`);
+                    if (!amountField.data('manually-edited')) {
+                        amountField.val(districtAmount.toFixed(2));
+                    }
                     recalculateSchemeDistributions(quotaIndex);
                 }
             });
             
             // Update district quota preview
             updateDistrictQuotaPreview();
+        });
+        
+        // Track manual edits to prevent auto-calculation from overriding
+        $(document).on('input', '.beneficiaries-input', function() {
+            $(this).data('manually-edited', true);
+        });
+        
+        $(document).on('input', '.district-amount-input', function() {
+            $(this).data('manually-edited', true);
+        });
+        
+        $(document).on('input', '.scheme-beneficiaries-input', function() {
+            $(this).data('manually-edited', true);
+        });
+        
+        $(document).on('input', '.scheme-amount-input', function() {
+            $(this).data('manually-edited', true);
         });
         
         // Calculate scheme beneficiaries and amount when scheme percentage changes
@@ -802,9 +840,7 @@
             const districtBeneficiaries = parseFloat($(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`).val()) || 0;
             
             // Get district total amount share from the display field (this is the district's share, not the total installment)
-            const districtAmountDisplay = $(`.district-amount-display[data-quota-index="${quotaIndex}"]`).val();
-            // Extract numeric value from "Rs. 1,234.56" format
-            const districtAmount = districtAmountDisplay ? parseFloat(districtAmountDisplay.replace('Rs. ', '').replace(/,/g, '')) || 0 : 0;
+            const districtAmount = parseFloat($(`.district-amount-input[data-quota-index="${quotaIndex}"]`).val()) || 0;
             
             let totalSchemeBeneficiaries = 0;
             let totalSchemeAmount = 0;
@@ -816,35 +852,32 @@
                 if (schemePercentage > 0 && districtBeneficiaries > 0 && districtAmount > 0) {
                     // Calculate scheme beneficiaries based on district total beneficiaries
                     const schemeBeneficiaries = (schemePercentage / 100) * districtBeneficiaries;
-                    $(this).find('.scheme-beneficiaries-display').val(schemeBeneficiaries.toFixed(1));
-                    totalSchemeBeneficiaries += schemeBeneficiaries;
+                    const beneficiariesField = $(this).find('.scheme-beneficiaries-input');
+                    if (!beneficiariesField.data('manually-edited')) {
+                        beneficiariesField.val(schemeBeneficiaries.toFixed(1));
+                    }
+                    totalSchemeBeneficiaries += parseFloat(beneficiariesField.val()) || schemeBeneficiaries;
                     
-                    // Calculate scheme amount based on district total amount share (not the total installment amount)
+                    // Calculate scheme amount based on district total amount share
                     const schemeAmount = (districtAmount * schemePercentage) / 100;
-                    $(this).find('.scheme-amount-display').val('Rs. ' + schemeAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-                    totalSchemeAmount += schemeAmount;
+                    const amountField = $(this).find('.scheme-amount-input');
+                    if (!amountField.data('manually-edited')) {
+                        amountField.val(schemeAmount.toFixed(2));
+                    }
+                    totalSchemeAmount += parseFloat(amountField.val()) || schemeAmount;
                 } else {
-                    $(this).find('.scheme-beneficiaries-display').val('');
-                    $(this).find('.scheme-amount-display').val('');
+                    const beneficiariesField = $(this).find('.scheme-beneficiaries-input');
+                    const amountField = $(this).find('.scheme-amount-input');
+                    if (!beneficiariesField.data('manually-edited')) {
+                        beneficiariesField.val('');
+                    }
+                    if (!amountField.data('manually-edited')) {
+                        amountField.val('');
+                    }
                 }
             });
             
-            // Validate scheme totals don't exceed district share (with tolerance for floating point precision)
-            const beneficiariesTolerance = Math.max(0.1, districtBeneficiaries * 0.0001); // 0.01% tolerance or minimum 0.1
-            const amountTolerance = Math.max(0.01, districtAmount * 0.0001); // 0.01% tolerance or minimum 0.01
-            
-            if ((totalSchemeBeneficiaries - districtBeneficiaries) > beneficiariesTolerance || 
-                (totalSchemeAmount - districtAmount) > amountTolerance) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Validation Error',
-                    text: `Scheme totals exceed district share. Beneficiaries: ${totalSchemeBeneficiaries.toFixed(1)} > ${districtBeneficiaries.toFixed(1)}, Amount: Rs. ${totalSchemeAmount.toFixed(2)} > Rs. ${districtAmount.toFixed(2)}`,
-                    confirmButtonColor: '#567AED',
-                    confirmButtonText: 'OK'
-                });
-            }
-            
-            // Update scheme preview
+            // Update scheme preview (validation will be done on form submission)
             updateSchemePreview(quotaIndex);
         }
         
@@ -874,7 +907,11 @@
             const totalPercentage = calculateTotalDistrictsPercentage();
             const remainingPercentage = 100 - totalPercentage;
             const installmentAmount = parseFloat($('input[name="installment_amount"]').val()) || 0;
-            const totalDistrictsAmount = (installmentAmount * totalPercentage) / 100;
+            // Sum actual entered amounts instead of calculating from percentage
+            let totalDistrictsAmount = 0;
+            $('.district-amount-input').each(function() {
+                totalDistrictsAmount += parseFloat($(this).val()) || 0;
+            });
             const remainingAmount = installmentAmount - totalDistrictsAmount;
             
             $('#totalDistrictsCount').text(totalDistricts);
@@ -904,16 +941,14 @@
             let totalAmount = 0;
             
             districtRow.find('.scheme-distribution-row').each(function() {
-                const beneficiaries = parseFloat($(this).find('.scheme-beneficiaries-display').val()) || 0;
-                const amountDisplay = $(this).find('.scheme-amount-display').val();
-                const amount = amountDisplay ? parseFloat(amountDisplay.replace('Rs. ', '').replace(/,/g, '')) || 0 : 0;
+                const beneficiaries = parseFloat($(this).find('.scheme-beneficiaries-input').val()) || 0;
+                const amount = parseFloat($(this).find('.scheme-amount-input').val()) || 0;
                 totalBeneficiaries += beneficiaries;
                 totalAmount += amount;
             });
             
             const districtBeneficiaries = parseFloat($(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`).val()) || 0;
-            const districtAmountDisplay = $(`.district-amount-display[data-quota-index="${quotaIndex}"]`).val();
-            const districtAmount = districtAmountDisplay ? parseFloat(districtAmountDisplay.replace('Rs. ', '').replace(/,/g, '')) || 0 : 0;
+            const districtAmount = parseFloat($(`.district-amount-input[data-quota-index="${quotaIndex}"]`).val()) || 0;
             
             $(`.totalSchemesCount[data-quota-index="${quotaIndex}"]`).text(schemeCount);
             $(`.totalSchemesPercentage[data-quota-index="${quotaIndex}"]`).text(totalPercentage.toFixed(2));
@@ -969,8 +1004,11 @@
                 errorMessages.push(`District percentages must equal exactly 100% (currently ${totalDistrictsPercentage.toFixed(2)}%).`);
             }
             
-            // Check if district amounts equal installment amount
-            const totalDistrictsAmount = (installmentAmount * totalDistrictsPercentage) / 100;
+            // Check if district amounts equal installment amount (sum of actual entered amounts)
+            let totalDistrictsAmount = 0;
+            $('.district-amount-input').each(function() {
+                totalDistrictsAmount += parseFloat($(this).val()) || 0;
+            });
             if (districtCount > 0 && Math.abs(totalDistrictsAmount - installmentAmount) > 0.01) {
                 isValid = false;
                 errorMessages.push(`District total amount (Rs. ${totalDistrictsAmount.toFixed(2)}) must equal installment amount (Rs. ${installmentAmount.toFixed(2)}).`);
@@ -998,6 +1036,42 @@
                 if (schemeCount > 0 && Math.abs(totalSchemePercentage - 100) > 0.01) {
                     isValid = false;
                     errorMessages.push(`${districtName} scheme percentages must equal exactly 100% (currently ${totalSchemePercentage.toFixed(2)}%).`);
+                }
+            });
+            
+            // Check each district's scheme totals exactly equal district totals
+            $('.district-quota-row').each(function() {
+                const quotaIndex = $(this).data('quota-index');
+                const schemeCount = $(this).find('.scheme-distribution-row').length;
+                const districtName = $(this).find('.district-select option:selected').text() || `District Quota #${quotaIndex + 1}`;
+                
+                if (schemeCount > 0) {
+                    const districtBeneficiaries = parseFloat($(`.beneficiaries-input[data-quota-index="${quotaIndex}"]`).val()) || 0;
+                    const districtAmount = parseFloat($(`.district-amount-input[data-quota-index="${quotaIndex}"]`).val()) || 0;
+                    
+                    let totalSchemeBeneficiaries = 0;
+                    let totalSchemeAmount = 0;
+                    
+                    $(this).find('.scheme-distribution-row').each(function() {
+                        const schemeBeneficiaries = parseFloat($(this).find('.scheme-beneficiaries-input').val()) || 0;
+                        const schemeAmount = parseFloat($(this).find('.scheme-amount-input').val()) || 0;
+                        totalSchemeBeneficiaries += schemeBeneficiaries;
+                        totalSchemeAmount += schemeAmount;
+                    });
+                    
+                    // Validate beneficiaries - must exactly equal (with tolerance for floating point)
+                    const beneficiariesTolerance = Math.max(0.1, districtBeneficiaries * 0.0001);
+                    if (Math.abs(totalSchemeBeneficiaries - districtBeneficiaries) > beneficiariesTolerance) {
+                        isValid = false;
+                        errorMessages.push(`${districtName} scheme beneficiaries total (${totalSchemeBeneficiaries.toFixed(1)}) must exactly equal district total (${districtBeneficiaries.toFixed(1)}).`);
+                    }
+                    
+                    // Validate amount - must exactly equal (with tolerance for floating point)
+                    const amountTolerance = Math.max(0.01, districtAmount * 0.0001);
+                    if (Math.abs(totalSchemeAmount - districtAmount) > amountTolerance) {
+                        isValid = false;
+                        errorMessages.push(`${districtName} scheme amount total (Rs. ${totalSchemeAmount.toFixed(2)}) must exactly equal district total (Rs. ${districtAmount.toFixed(2)}).`);
+                    }
                 }
             });
             

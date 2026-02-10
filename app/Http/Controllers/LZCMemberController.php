@@ -27,7 +27,8 @@ class LZCMemberController extends Controller
         $members = LZCMember::with(['localZakatCommittee', 'localZakatCommittee.district'])->orderBy('full_name')->get();
         $committees = LocalZakatCommittee::where('is_active', true)->with('district')->orderBy('name')->get();
         $districts = \App\Models\District::where('is_active', true)->orderBy('name')->get();
-        return view('lzc-members.index', compact('members', 'committees', 'districts'));
+        $uniqueDesignations = $members->pluck('designation')->filter()->unique()->sort()->values();
+        return view('lzc-members.index', compact('members', 'committees', 'districts', 'uniqueDesignations'));
     }
 
     public function create(Request $request)
@@ -59,6 +60,7 @@ class LZCMemberController extends Controller
             'mobile_number' => ['nullable', 'string', 'regex:/^03[0-9]{2}-[0-9]{7}$/'],
             'date_of_birth' => 'required|date',
             'gender' => 'required|in:male,female,other',
+            'designation' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after:start_date',
             'is_active' => 'boolean',
@@ -222,6 +224,7 @@ class LZCMemberController extends Controller
             'mobile_number' => ['nullable', 'string', 'regex:/^03[0-9]{2}-[0-9]{7}$/'],
             'date_of_birth' => 'required|date',
             'gender' => 'required|in:male,female,other',
+            'designation' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after:start_date',
         ]);
@@ -277,6 +280,7 @@ class LZCMemberController extends Controller
             'mobile_number' => ['nullable', 'string', 'regex:/^03[0-9]{2}-[0-9]{7}$/'],
             'date_of_birth' => 'required|date',
             'gender' => 'required|in:male,female,other',
+            'designation' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after:start_date',
         ]);

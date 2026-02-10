@@ -38,14 +38,15 @@ class UserController extends Controller
     public function create()
     {
         $districts = District::where('is_active', true)->orderBy('name')->get();
-        return view('users.create', compact('districts'));
+        $institutions = \App\Models\Institution::with('district')->where('is_active', true)->orderBy('name')->get();
+        return view('users.create', compact('districts', 'institutions'));
     }
 
     public function store(Request $request)
     {
         // Administrator HQ can only create district_user
         $allowedRoles = auth()->user()->isSuperAdmin() 
-            ? ['super_admin', 'administrator_hq', 'district_user']
+            ? ['super_admin', 'administrator_hq', 'district_user', 'institution']
             : ['district_user'];
         
         $validated = $request->validate([
@@ -56,18 +57,29 @@ class UserController extends Controller
             'district_id' => [
                 'nullable',
                 'exists:districts,id',
-                Rule::requiredIf($request->role === 'district_user'),
+                Rule::requiredIf(in_array($request->role, ['district_user', 'institution'])),
+            ],
+            'institution_id' => [
+                'nullable',
+                'exists:institutions,id',
+                Rule::requiredIf($request->role === 'institution'),
             ],
         ], [
-            'district_id.required_if' => 'District is required for district users.',
-            'role.in' => 'You can only create users with district user role.',
+            'district_id.required_if' => 'District is required for district and institution users.',
+            'institution_id.required_if' => 'Institution is required for institution users.',
+            'role.in' => 'You can only create users with allowed roles.',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
 
         // District should be null for super_admin and administrator_hq
-        if ($validated['role'] !== 'district_user') {
+        if (!in_array($validated['role'], ['district_user', 'institution'])) {
             $validated['district_id'] = null;
+        }
+
+        // Institution should be set only for institution users
+        if ($validated['role'] !== 'institution') {
+            $validated['institution_id'] = null;
         }
 
         User::create($validated);
@@ -95,7 +107,8 @@ class UserController extends Controller
         }
         
         $districts = District::where('is_active', true)->orderBy('name')->get();
-        return view('users.edit', compact('user', 'districts'));
+        $institutions = \App\Models\Institution::with('district')->where('is_active', true)->orderBy('name')->get();
+        return view('users.edit', compact('user', 'districts', 'institutions'));
     }
 
     public function update(Request $request, User $user)
@@ -107,7 +120,7 @@ class UserController extends Controller
         
         // Administrator HQ can only assign district_user role
         $allowedRoles = auth()->user()->isSuperAdmin() 
-            ? ['super_admin', 'administrator_hq', 'district_user']
+            ? ['super_admin', 'administrator_hq', 'district_user', 'institution']
             : ['district_user'];
         
         $validated = $request->validate([
@@ -118,11 +131,17 @@ class UserController extends Controller
             'district_id' => [
                 'nullable',
                 'exists:districts,id',
-                Rule::requiredIf($request->role === 'district_user'),
+                Rule::requiredIf(in_array($request->role, ['district_user', 'institution'])),
+            ],
+            'institution_id' => [
+                'nullable',
+                'exists:institutions,id',
+                Rule::requiredIf($request->role === 'institution'),
             ],
         ], [
-            'district_id.required_if' => 'District is required for district users.',
-            'role.in' => 'You can only assign district user role.',
+            'district_id.required_if' => 'District is required for district and institution users.',
+            'institution_id.required_if' => 'Institution is required for institution users.',
+            'role.in' => 'You can only assign allowed roles.',
         ]);
 
         // Only update password if provided
@@ -133,8 +152,13 @@ class UserController extends Controller
         }
 
         // District should be null for super_admin and administrator_hq
-        if ($validated['role'] !== 'district_user') {
+        if (!in_array($validated['role'], ['district_user', 'institution'])) {
             $validated['district_id'] = null;
+        }
+
+        // Institution should be set only for institution users
+        if ($validated['role'] !== 'institution') {
+            $validated['institution_id'] = null;
         }
 
         $user->update($validated);

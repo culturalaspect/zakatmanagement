@@ -345,6 +345,12 @@ class PhaseController extends Controller
         }
         $committees = $committeesQuery->get();
         
+        // Get institutions for institutional schemes
+        $institutions = \App\Models\Institution::where('is_active', true)
+            ->with(['district', 'tehsil', 'unionCouncil', 'village', 'mohalla'])
+            ->orderBy('name')
+            ->get();
+        
         // Get unique schemes, categories, and statuses from beneficiaries for filtering
         $beneficiaries = $phase->beneficiaries;
         $uniqueSchemes = $beneficiaries->pluck('scheme')->filter()->unique('id')->pluck('name')->sort()->values();
@@ -358,6 +364,7 @@ class PhaseController extends Controller
             'currentAmount', 
             'schemes', 
             'committees',
+            'institutions',
             'uniqueSchemes',
             'uniqueCategories',
             'uniqueCommittees',

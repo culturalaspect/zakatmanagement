@@ -19,6 +19,7 @@ class LZCMember extends Model
         'mobile_number',
         'date_of_birth',
         'gender',
+        'designation',
         'start_date',
         'end_date',
         'is_active',

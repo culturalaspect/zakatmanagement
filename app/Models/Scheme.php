@@ -17,6 +17,11 @@ class Scheme extends Model
         'minimum_age',
         'is_lump_sum',
         'is_active',
+        'is_institutional',
+        'institutional_type',
+        'allows_representative',
+        'beneficiary_required_fields',
+        'representative_required_fields',
     ];
 
     protected function casts(): array
@@ -26,6 +31,10 @@ class Scheme extends Model
             'has_age_restriction' => 'boolean',
             'is_lump_sum' => 'boolean',
             'is_active' => 'boolean',
+            'is_institutional' => 'boolean',
+            'allows_representative' => 'boolean',
+            'beneficiary_required_fields' => 'array',
+            'representative_required_fields' => 'array',
         ];
     }
 
@@ -42,5 +51,15 @@ class Scheme extends Model
     public function beneficiaries()
     {
         return $this->hasMany(Beneficiary::class);
+    }
+
+    public function getInstitutionalTypeLabelAttribute()
+    {
+        return match($this->institutional_type) {
+            'educational' => 'Educational Stipend',
+            'madarsa' => 'Madarsa Stipend',
+            'health' => 'Health Stipend',
+            default => null,
+        };
     }
 }

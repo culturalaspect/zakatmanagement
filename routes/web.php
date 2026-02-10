@@ -62,6 +62,9 @@ Route::middleware('auth')->group(function () {
     Route::post('local-zakat-committees/{localZakatCommittee}/add-mohalla', [\App\Http\Controllers\LocalZakatCommitteeController::class, 'addMohalla'])->name('local-zakat-committees.add-mohalla');
     Route::post('local-zakat-committees/{localZakatCommittee}/remove-mohalla', [\App\Http\Controllers\LocalZakatCommitteeController::class, 'removeMohalla'])->name('local-zakat-committees.remove-mohalla');
     
+    // Institutions
+    Route::resource('institutions', \App\Http\Controllers\InstitutionController::class);
+    
     // LZC Members (Restricted: No District Users - Check in Controller)
     Route::resource('lzc-members', \App\Http\Controllers\LZCMemberController::class)->parameters([
         'lzc-members' => 'lZCMember'
@@ -95,6 +98,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/pending-approvals', [\App\Http\Controllers\AdminHQController::class, 'pendingApprovals'])->name('admin-hq.pending');
         Route::post('/approve/{beneficiary}', [\App\Http\Controllers\AdminHQController::class, 'approve'])->name('admin-hq.approve');
         Route::post('/reject/{beneficiary}', [\App\Http\Controllers\AdminHQController::class, 'reject'])->name('admin-hq.reject');
+        Route::post('/bulk-approve', [\App\Http\Controllers\AdminHQController::class, 'bulkApprove'])->name('admin-hq.bulk-approve');
         Route::get('/export-approved', [\App\Http\Controllers\AdminHQController::class, 'exportApproved'])->name('admin-hq.export-approved');
     });
 
@@ -120,8 +124,17 @@ Route::middleware('auth')->group(function () {
         // Reports
         Route::prefix('reports')->group(function () {
             Route::get('/', [\App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
+            Route::get('/executive-summary', [\App\Http\Controllers\ReportController::class, 'executiveSummary'])->name('reports.executive-summary');
             Route::get('/district-wise', [\App\Http\Controllers\ReportController::class, 'districtWise'])->name('reports.district-wise');
             Route::get('/scheme-wise', [\App\Http\Controllers\ReportController::class, 'schemeWise'])->name('reports.scheme-wise');
+            Route::get('/beneficiary-status', [\App\Http\Controllers\ReportController::class, 'beneficiaryStatus'])->name('reports.beneficiary-status');
+            Route::get('/phase-wise', [\App\Http\Controllers\ReportController::class, 'phaseWise'])->name('reports.phase-wise');
+            Route::get('/fund-disbursement', [\App\Http\Controllers\ReportController::class, 'fundDisbursement'])->name('reports.fund-disbursement');
+            Route::get('/financial-year-summary', [\App\Http\Controllers\ReportController::class, 'financialYearSummary'])->name('reports.financial-year-summary');
+            Route::get('/lzc-wise', [\App\Http\Controllers\ReportController::class, 'lzcWise'])->name('reports.lzc-wise');
+            Route::get('/institution-wise', [\App\Http\Controllers\ReportController::class, 'institutionWise'])->name('reports.institution-wise');
+            Route::get('/payment-report', [\App\Http\Controllers\ReportController::class, 'paymentReport'])->name('reports.payment-report');
+            Route::get('/beneficiary-list', [\App\Http\Controllers\ReportController::class, 'beneficiaryList'])->name('reports.beneficiary-list');
         });
 
         // Notifications

@@ -22,7 +22,10 @@ class MohallaController extends Controller
     {
         $mohallas = Mohalla::with(['village.unionCouncil.tehsil.district'])->orderBy('name')->get();
         $villages = Village::where('is_active', true)->with('unionCouncil.tehsil.district')->orderBy('name')->get();
-        return view('mohallas.index', compact('mohallas', 'villages'));
+        $districts = \App\Models\District::where('is_active', true)->orderBy('name')->get();
+        $tehsils = \App\Models\Tehsil::where('is_active', true)->with('district')->orderBy('name')->get();
+        $unionCouncils = \App\Models\UnionCouncil::where('is_active', true)->with('tehsil.district')->orderBy('name')->get();
+        return view('mohallas.index', compact('mohallas', 'villages', 'districts', 'tehsils', 'unionCouncils'));
     }
 
     public function create()

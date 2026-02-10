@@ -140,6 +140,15 @@
                                             </select>
                                         </div>
                                         <div class="col-md-3 mb-3">
+                                            <label class="form-label">Designation</label>
+                                            <select id="filterDesignation" class="form-control form-control-sm">
+                                                <option value="">All Designations</option>
+                                                @foreach($uniqueDesignations as $designation)
+                                                    <option value="{{ $designation }}">{{ $designation }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Verification Status</label>
                                             <select id="filterVerificationStatus" class="form-control form-control-sm">
                                                 <option value="">All Statuses</option>
@@ -157,7 +166,9 @@
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-3 mb-3">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12 mb-3">
                                             <label class="form-label">Search</label>
                                             <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="Search by CNIC, Name...">
                                         </div>
@@ -181,6 +192,7 @@
                                     <th>Full Name</th>
                                     <th>Mobile Number</th>
                                     <th>Gender</th>
+                                    <th>Designation</th>
                                     <th>Start Date</th>
                                     <th>End Date</th>
                                     <th>Verification Status</th>
@@ -209,6 +221,7 @@
                                             <span class="badge bg-warning" title="Raw value: '{{ $genderValue }}' | Processed: '{{ $gender }}'">Unknown</span>
                                         @endif
                                     </td>
+                                    <td>{{ $member->designation ?? 'N/A' }}</td>
                                     <td>{{ $member->start_date ? \Carbon\Carbon::parse($member->start_date)->format('d M Y') : 'N/A' }}</td>
                                     <td>{{ $member->end_date ? \Carbon\Carbon::parse($member->end_date)->format('d M Y') : 'Ongoing' }}</td>
                                     <td>
@@ -601,18 +614,22 @@
                 membersTable.column(3).search(this.value).draw();
             });
 
+            $('#filterDesignation').on('change', function() {
+                membersTable.column(4).search(this.value).draw();
+            });
+
             $('#filterVerificationStatus').on('change', function() {
-                membersTable.column(6).search(this.value).draw();
+                membersTable.column(7).search(this.value).draw();
             });
 
             $('#filterStatus').on('change', function() {
                 const value = this.value.toLowerCase();
                 if (value === 'active') {
-                    membersTable.column(7).search('Active').draw();
+                    membersTable.column(8).search('Active').draw();
                 } else if (value === 'inactive') {
-                    membersTable.column(7).search('Inactive').draw();
+                    membersTable.column(8).search('Inactive').draw();
                 } else {
-                    membersTable.column(7).search('').draw();
+                    membersTable.column(8).search('').draw();
                 }
             });
 
@@ -1440,6 +1457,10 @@
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Designation <span class="text-danger">*</span></label>
+                                <input type="text" name="designation" class="form-control" placeholder="e.g., Chairman, Secretary, Member" required>
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Start Date <span class="text-danger">*</span></label>
@@ -2335,6 +2356,10 @@
                                                 </div>
                                                 ` : ''}
                                             </div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Designation <span class="text-danger">*</span></label>
+                                            <input type="text" name="designation" id="editDesignation" class="form-control ${readonlyClass}" value="${m.designation || ''}" placeholder="e.g., Chairman, Secretary, Member" required ${readonlyAttr}>
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label class="form-label">Start Date <span class="text-danger">*</span></label>

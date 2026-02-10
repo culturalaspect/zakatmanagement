@@ -173,6 +173,13 @@
                             @enderror
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">Designation <span class="text-danger">*</span></label>
+                            <input type="text" name="designation" id="designation" class="form-control" value="{{ old('designation') }}" placeholder="e.g., Chairman, Secretary, Member" required>
+                            @error('designation')
+                                <div class="text-danger">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Start Date <span class="text-danger">*</span></label>
                             <input type="date" name="start_date" class="form-control" value="{{ old('start_date') }}" required>
                             @error('start_date')

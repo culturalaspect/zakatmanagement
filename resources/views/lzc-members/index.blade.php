@@ -54,6 +54,15 @@
                                             </select>
                                         </div>
                                         <div class="col-md-3 mb-3">
+                                            <label class="form-label">Designation</label>
+                                            <select id="filterDesignation" class="form-control form-control-sm">
+                                                <option value="">All Designations</option>
+                                                @foreach($uniqueDesignations as $designation)
+                                                    <option value="{{ $designation }}">{{ $designation }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 mb-3">
                                             <label class="form-label">Verification Status</label>
                                             <select id="filterVerificationStatus" class="form-control form-control-sm">
                                                 <option value="">All Status</option>
@@ -62,6 +71,8 @@
                                                 <option value="rejected">Rejected</option>
                                             </select>
                                         </div>
+                                    </div>
+                                    <div class="row">
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Status</label>
                                             <select id="filterStatus" class="form-control form-control-sm">
@@ -92,6 +103,7 @@
                                     <th>Committee</th>
                                     <th>Mobile Number</th>
                                     <th>Gender</th>
+                                    <th>Designation</th>
                                     <th>Start Date</th>
                                     <th>End Date</th>
                                     <th>Verification Status</th>
@@ -122,6 +134,7 @@
                                             <span class="badge bg-secondary">Other</span>
                                         @endif
                                     </td>
+                                    <td>{{ $member->designation ?? 'N/A' }}</td>
                                     <td>{{ $member->start_date ? \Carbon\Carbon::parse($member->start_date)->format('d M Y') : 'N/A' }}</td>
                                     <td>
                                         @if($member->end_date)
@@ -173,7 +186,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="10" class="text-center">No members found.</td>
+                                <td colspan="11" class="text-center">No members found.</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -220,7 +233,7 @@
                     text: '<i class="ti-files"></i> Copy',
                     className: 'btn btn-sm btn-secondary',
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                         format: {
                             body: function(data, row, column, node) {
                                 var div = document.createElement('div');
@@ -237,7 +250,7 @@
                     className: 'btn btn-sm btn-secondary',
                     filename: 'lzc-members-' + new Date().toISOString().split('T')[0],
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                         format: {
                             body: function(data, row, column, node) {
                                 var div = document.createElement('div');
@@ -254,7 +267,7 @@
                     className: 'btn btn-sm btn-success',
                     filename: 'lzc-members-' + new Date().toISOString().split('T')[0],
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                         format: {
                             body: function(data, row, column, node) {
                                 var div = document.createElement('div');
@@ -273,7 +286,7 @@
                     orientation: 'landscape',
                     pageSize: 'A4',
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8],
+                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                         format: {
                             body: function(data, row, column, node) {
                                 var div = document.createElement('div');
@@ -287,7 +300,7 @@
                         doc.defaultStyle.fontSize = 7;
                         doc.styles.tableHeader.fontSize = 8;
                         doc.styles.tableHeader.alignment = 'center';
-                        doc.content[1].table.widths = ['*', '*', '*', '*', '*', '*', '*', '*', '*'];
+                        doc.content[1].table.widths = ['*', '*', '*', '*', '*', '*', '*', '*', '*', '*'];
                     }
                 },
                 {
@@ -295,7 +308,7 @@
                     text: '<i class="ti-printer"></i> Print',
                     className: 'btn btn-sm btn-info',
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+                        columns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
                     },
                     customize: function(win) {
                         $(win.document.body).find('table').addClass('display').css('font-size', '9px');
@@ -311,11 +324,12 @@
                 { width: "200px", targets: 2 }, // Committee
                 { width: "130px", targets: 3 }, // Mobile Number
                 { width: "100px", targets: 4 }, // Gender
-                { width: "120px", targets: 5 }, // Start Date
-                { width: "120px", targets: 6 }, // End Date
-                { width: "130px", targets: 7 }, // Verification Status
-                { width: "100px", targets: 8 }, // Status
-                { width: "180px", targets: 9 }  // Actions
+                { width: "150px", targets: 5 }, // Designation
+                { width: "120px", targets: 6 }, // Start Date
+                { width: "120px", targets: 7 }, // End Date
+                { width: "130px", targets: 8 }, // Verification Status
+                { width: "100px", targets: 9 }, // Status
+                { width: "180px", targets: 10 }  // Actions
             ]
         });
 
@@ -332,7 +346,7 @@
             var statusValue = $('#filterVerificationStatus').val();
             if (statusValue === '') return true;
             var row = table.row(dataIndex).node();
-            var rowStatus = $(row).find('td:eq(7)').attr('data-verification-status');
+            var rowStatus = $(row).find('td:eq(8)').attr('data-verification-status');
             if (!rowStatus) return true;
             return rowStatus === statusValue;
         };
@@ -341,7 +355,7 @@
             var statusValue = $('#filterStatus').val();
             if (statusValue === '') return true;
             var row = table.row(dataIndex).node();
-            var rowStatus = $(row).find('td:eq(8)').attr('data-status');
+            var rowStatus = $(row).find('td:eq(9)').attr('data-status');
             if (!rowStatus) return true;
             return rowStatus === statusValue;
         };
@@ -359,6 +373,10 @@
 
         $('#filterCommittee').on('change', function() {
             table.column(2).search($(this).val()).draw();
+        });
+
+        $('#filterDesignation').on('change', function() {
+            table.column(5).search($(this).val()).draw();
         });
 
         $('#filterVerificationStatus').on('change', function() {
@@ -398,6 +416,7 @@
             }
             $('#filterDistrict').val('');
             $('#filterCommittee').val('');
+            $('#filterDesignation').val('');
             $('#filterVerificationStatus').val('');
             $('#filterStatus').val('');
             table.search('').columns().search('').draw();

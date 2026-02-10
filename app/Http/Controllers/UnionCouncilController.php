@@ -22,7 +22,8 @@ class UnionCouncilController extends Controller
     {
         $unionCouncils = UnionCouncil::with(['tehsil.district'])->orderBy('name')->get();
         $tehsils = Tehsil::where('is_active', true)->with('district')->orderBy('name')->get();
-        return view('union-councils.index', compact('unionCouncils', 'tehsils'));
+        $districts = \App\Models\District::where('is_active', true)->orderBy('name')->get();
+        return view('union-councils.index', compact('unionCouncils', 'tehsils', 'districts'));
     }
 
     public function create()

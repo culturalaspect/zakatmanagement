@@ -57,9 +57,29 @@
     </div>
 
     <div class="table-responsive">
+        @php
+            $canBulkApprove = auth()->check() && (auth()->user()->isSuperAdmin() || auth()->user()->isAdministratorHQ());
+        @endphp
+        @if($type === 'pending' && $canBulkApprove)
+            <div class="mb-2 d-flex justify-content-between align-items-center">
+                <div>
+                    <button type="button" id="bulkApproveBtn_{{ $tableId }}" class="btn btn-sm btn-success">
+                        <i class="ti-check"></i> Approve Selected
+                    </button>
+                </div>
+                <div>
+                    <small class="text-muted">Select cases to approve in bulk.</small>
+                </div>
+            </div>
+        @endif
         <table class="table" id="{{ $tableId }}">
             <thead>
                 <tr>
+                    @if($type === 'pending' && $canBulkApprove)
+                        <th>
+                            <input type="checkbox" id="selectAll_{{ $tableId }}">
+                        </th>
+                    @endif
                     <th>CNIC</th>
                     <th>Name</th>
                     <th>District</th>
@@ -93,6 +113,11 @@
             <tbody>
                 @forelse($beneficiaries as $beneficiary)
                 <tr>
+                    @if($type === 'pending' && $canBulkApprove)
+                        <td>
+                            <input type="checkbox" class="case-checkbox" value="{{ $beneficiary->id }}">
+                        </td>
+                    @endif
                     <td>{{ $beneficiary->cnic }}</td>
                     <td>{{ $beneficiary->full_name }}</td>
                     <td data-financial-year="{{ $beneficiary->phase->installment->fundAllocation->financialYear->name ?? '' }}">{{ $beneficiary->phase->district->name ?? 'N/A' }}</td>
@@ -181,4 +206,102 @@
     </div>
 @endif
 
+@pushOnce('scripts')
+<script>
+    $(document).ready(function () {
+        @if($type === 'pending' && auth()->check() && (auth()->user()->isSuperAdmin() || auth()->user()->isAdministratorHQ()))
+        (function() {
+            const tableId = @json($tableId);
+            const selectAllId = '#selectAll_' + tableId;
+            const bulkApproveBtnId = '#bulkApproveBtn_' + tableId;
+            
+            // Select/Deselect all checkboxes
+            $(document).on('change', selectAllId, function() {
+                const checked = $(this).is(':checked');
+                $('#' + tableId + ' tbody .case-checkbox').prop('checked', checked);
+            });
 
+            // When any row checkbox changes, if any unchecked, uncheck header
+            $(document).on('change', '#' + tableId + ' tbody .case-checkbox', function() {
+                const total = $('#' + tableId + ' tbody .case-checkbox').length;
+                const checked = $('#' + tableId + ' tbody .case-checkbox:checked').length;
+                $(selectAllId).prop('checked', total > 0 && total === checked);
+            });
+
+            // Bulk approve button click
+            $(document).on('click', bulkApproveBtnId, function() {
+                const selectedIds = $('#' + tableId + ' tbody .case-checkbox:checked')
+                    .map(function() { return $(this).val(); }).get();
+
+                if (selectedIds.length === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No Cases Selected',
+                        text: 'Please select at least one case to approve.'
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'Approve Selected Cases',
+                    html: `
+                        <p>You are about to approve <strong>${selectedIds.length}</strong> selected case(s).</p>
+                        <div class="form-group text-left">
+                            <label for="bulk_admin_remarks" class="form-label">Admin Remarks (optional)</label>
+                            <textarea id="bulk_admin_remarks" class="form-control" rows="3" placeholder="Enter remarks (optional)..."></textarea>
+                        </div>
+                    `,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Approve',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#28a745',
+                    cancelButtonColor: '#6c757d',
+                    preConfirm: () => {
+                        const remarks = $('#bulk_admin_remarks').val();
+                        return $.ajax({
+                            url: '{{ route("admin-hq.bulk-approve") }}',
+                            type: 'POST',
+                            data: {
+                                beneficiary_ids: selectedIds,
+                                admin_remarks: remarks,
+                                _token: $('meta[name="csrf-token"]').attr('content')
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'Approved',
+                                        text: response.message || 'Selected cases have been approved successfully.',
+                                        timer: 2000,
+                                        showConfirmButton: false
+                                    }).then(() => {
+                                        window.location.reload();
+                                    });
+                                } else {
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Error',
+                                        text: response.message || 'An error occurred while approving cases.'
+                                    });
+                                }
+                            },
+                            error: function(xhr) {
+                                let errorMessage = 'An error occurred while approving cases.';
+                                if (xhr.responseJSON && xhr.responseJSON.message) {
+                                    errorMessage = xhr.responseJSON.message;
+                                } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                                    const errors = Object.values(xhr.responseJSON.errors).flat();
+                                    errorMessage = errors.join('\\n');
+                                }
+                                Swal.showValidationMessage(errorMessage);
+                            }
+                        });
+                    }
+                });
+            });
+        })();
+        @endif
+    });
+</script>
+@endPushOnce

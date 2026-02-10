@@ -124,16 +124,25 @@ class InstallmentController extends Controller
                 ])->withInput();
             }
 
-            // Check if scheme totals don't exceed district share (with tolerance for floating point precision)
+            // Check if scheme totals exactly equal district share (using actual entered values)
             $districtTotalBeneficiaries = $quotaData['total_beneficiaries'];
-            $districtTotalAmount = ($validated['installment_amount'] * $quotaData['percentage']) / 100;
+            // Use manually entered total_amount if provided, otherwise calculate from percentage
+            $districtTotalAmount = isset($quotaData['total_amount']) && $quotaData['total_amount'] > 0 
+                ? $quotaData['total_amount'] 
+                : ($validated['installment_amount'] * $quotaData['percentage']) / 100;
             
             $totalSchemeBeneficiaries = 0;
             $totalSchemeAmount = 0;
             
             foreach ($quotaData['scheme_distributions'] as $distribution) {
-                $schemeBeneficiaries = ($distribution['percentage'] / 100) * $districtTotalBeneficiaries;
-                $schemeAmount = ($districtTotalAmount * $distribution['percentage']) / 100;
+                // Use actual entered values if provided, otherwise calculate from percentage
+                $schemeBeneficiaries = isset($distribution['beneficiaries_count']) && $distribution['beneficiaries_count'] > 0
+                    ? $distribution['beneficiaries_count']
+                    : (($distribution['percentage'] / 100) * $districtTotalBeneficiaries);
+                
+                $schemeAmount = isset($distribution['amount']) && $distribution['amount'] > 0
+                    ? $distribution['amount']
+                    : (($districtTotalAmount * $distribution['percentage']) / 100);
                 
                 $totalSchemeBeneficiaries += $schemeBeneficiaries;
                 $totalSchemeAmount += $schemeAmount;
@@ -143,10 +152,11 @@ class InstallmentController extends Controller
             $beneficiariesTolerance = max(0.1, $districtTotalBeneficiaries * 0.0001); // 0.01% tolerance or minimum 0.1
             $amountTolerance = max(0.01, $districtTotalAmount * 0.0001); // 0.01% tolerance or minimum 0.01
             
-            if (($totalSchemeBeneficiaries - $districtTotalBeneficiaries) > $beneficiariesTolerance || 
-                ($totalSchemeAmount - $districtTotalAmount) > $amountTolerance) {
+            // Check if totals exactly equal (within tolerance) - must be equal, not just not exceed
+            if (abs($totalSchemeBeneficiaries - $districtTotalBeneficiaries) > $beneficiariesTolerance || 
+                abs($totalSchemeAmount - $districtTotalAmount) > $amountTolerance) {
                 return back()->withErrors([
-                    'district_quotas.' . $index . '.scheme_distributions' => $districtName . ' scheme totals exceed district share. Beneficiaries: ' . number_format($totalSchemeBeneficiaries, 1) . ' > ' . number_format($districtTotalBeneficiaries, 1) . ', Amount: Rs. ' . number_format($totalSchemeAmount, 2) . ' > Rs. ' . number_format($districtTotalAmount, 2) . '.'
+                    'district_quotas.' . $index . '.scheme_distributions' => $districtName . ' scheme totals must exactly equal district share. Beneficiaries: ' . number_format($totalSchemeBeneficiaries, 1) . ' vs ' . number_format($districtTotalBeneficiaries, 1) . ', Amount: Rs. ' . number_format($totalSchemeAmount, 2) . ' vs Rs. ' . number_format($districtTotalAmount, 2) . '.'
                 ])->withInput();
             }
         }
@@ -159,20 +169,30 @@ class InstallmentController extends Controller
         ]);
 
         foreach ($request->district_quotas as $quotaData) {
+            // Use manually entered total_amount if provided, otherwise calculate from percentage
+            $districtTotalAmount = isset($quotaData['total_amount']) && $quotaData['total_amount'] > 0 
+                ? $quotaData['total_amount'] 
+                : ($installment->installment_amount * $quotaData['percentage']) / 100;
+            
             $quota = DistrictQuota::create([
                 'installment_id' => $installment->id,
                 'district_id' => $quotaData['district_id'],
                 'percentage' => $quotaData['percentage'],
                 'total_beneficiaries' => $quotaData['total_beneficiaries'],
-                'total_amount' => ($installment->installment_amount * $quotaData['percentage']) / 100,
+                'total_amount' => $districtTotalAmount,
             ]);
 
             foreach ($quotaData['scheme_distributions'] as $distribution) {
+                // Use manually entered amount if provided, otherwise calculate from percentage
+                $schemeAmount = isset($distribution['amount']) && $distribution['amount'] > 0
+                    ? $distribution['amount']
+                    : ($quota->total_amount * $distribution['percentage']) / 100;
+                
                 SchemeDistribution::create([
                     'district_quota_id' => $quota->id,
                     'scheme_id' => $distribution['scheme_id'],
                     'percentage' => $distribution['percentage'],
-                    'amount' => ($quota->total_amount * $distribution['percentage']) / 100,
+                    'amount' => $schemeAmount,
                     'beneficiaries_count' => $distribution['beneficiaries_count'] ?? 0,
                 ]);
             }
@@ -343,16 +363,25 @@ class InstallmentController extends Controller
                 ])->withInput();
             }
 
-            // Check if scheme totals don't exceed district share (with tolerance)
+            // Check if scheme totals exactly equal district share (using actual entered values)
             $districtTotalBeneficiaries = $quotaData['total_beneficiaries'];
-            $districtTotalAmount = ($validated['installment_amount'] * $quotaData['percentage']) / 100;
+            // Use manually entered total_amount if provided, otherwise calculate from percentage
+            $districtTotalAmount = isset($quotaData['total_amount']) && $quotaData['total_amount'] > 0 
+                ? $quotaData['total_amount'] 
+                : ($validated['installment_amount'] * $quotaData['percentage']) / 100;
             
             $totalSchemeBeneficiaries = 0;
             $totalSchemeAmount = 0;
             
             foreach ($quotaData['scheme_distributions'] as $distribution) {
-                $schemeBeneficiaries = ($distribution['percentage'] / 100) * $districtTotalBeneficiaries;
-                $schemeAmount = ($districtTotalAmount * $distribution['percentage']) / 100;
+                // Use actual entered values if provided, otherwise calculate from percentage
+                $schemeBeneficiaries = isset($distribution['beneficiaries_count']) && $distribution['beneficiaries_count'] > 0
+                    ? $distribution['beneficiaries_count']
+                    : (($distribution['percentage'] / 100) * $districtTotalBeneficiaries);
+                
+                $schemeAmount = isset($distribution['amount']) && $distribution['amount'] > 0
+                    ? $distribution['amount']
+                    : (($districtTotalAmount * $distribution['percentage']) / 100);
                 
                 $totalSchemeBeneficiaries += $schemeBeneficiaries;
                 $totalSchemeAmount += $schemeAmount;
@@ -361,9 +390,10 @@ class InstallmentController extends Controller
             $beneficiariesTolerance = max(0.1, $districtTotalBeneficiaries * 0.0001); // 0.01% tolerance or minimum 0.1
             $schemeAmountTolerance = max(0.01, $districtTotalAmount * 0.0001); // 0.01% tolerance or minimum 0.01
 
+            // Check if totals exactly equal (within tolerance) - must be equal, not just not exceed
             if (abs($totalSchemeBeneficiaries - $districtTotalBeneficiaries) > $beneficiariesTolerance || abs($totalSchemeAmount - $districtTotalAmount) > $schemeAmountTolerance) {
                 return back()->withErrors([
-                    'district_quotas.' . $index . '.scheme_distributions' => $districtName . ' scheme totals must equal district share. Beneficiaries: ' . number_format($totalSchemeBeneficiaries, 1) . ' vs ' . number_format($districtTotalBeneficiaries, 1) . ', Amount: Rs. ' . number_format($totalSchemeAmount, 2) . ' vs Rs. ' . number_format($districtTotalAmount, 2) . '.'
+                    'district_quotas.' . $index . '.scheme_distributions' => $districtName . ' scheme totals must exactly equal district share. Beneficiaries: ' . number_format($totalSchemeBeneficiaries, 1) . ' vs ' . number_format($districtTotalBeneficiaries, 1) . ', Amount: Rs. ' . number_format($totalSchemeAmount, 2) . ' vs Rs. ' . number_format($districtTotalAmount, 2) . '.'
                 ])->withInput();
             }
         }
@@ -383,20 +413,30 @@ class InstallmentController extends Controller
 
         // Create new district quotas and scheme distributions
         foreach ($request->district_quotas as $quotaData) {
+            // Use manually entered total_amount if provided, otherwise calculate from percentage
+            $districtTotalAmount = isset($quotaData['total_amount']) && $quotaData['total_amount'] > 0 
+                ? $quotaData['total_amount'] 
+                : ($installment->installment_amount * $quotaData['percentage']) / 100;
+            
             $quota = DistrictQuota::create([
                 'installment_id' => $installment->id,
                 'district_id' => $quotaData['district_id'],
                 'percentage' => $quotaData['percentage'],
                 'total_beneficiaries' => $quotaData['total_beneficiaries'],
-                'total_amount' => ($installment->installment_amount * $quotaData['percentage']) / 100,
+                'total_amount' => $districtTotalAmount,
             ]);
 
             foreach ($quotaData['scheme_distributions'] as $distribution) {
+                // Use manually entered amount if provided, otherwise calculate from percentage
+                $schemeAmount = isset($distribution['amount']) && $distribution['amount'] > 0
+                    ? $distribution['amount']
+                    : ($quota->total_amount * $distribution['percentage']) / 100;
+                
                 SchemeDistribution::create([
                     'district_quota_id' => $quota->id,
                     'scheme_id' => $distribution['scheme_id'],
                     'percentage' => $distribution['percentage'],
-                    'amount' => ($quota->total_amount * $distribution['percentage']) / 100,
+                    'amount' => $schemeAmount,
                     'beneficiaries_count' => $distribution['beneficiaries_count'] ?? 0,
                 ]);
             }

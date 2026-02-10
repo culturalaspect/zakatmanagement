@@ -127,7 +127,7 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
             
-        } else {
+        } elseif ($user->isDistrictUser() && $user->district_id) {
             // District user statistics
             $districtId = $user->district_id;
             $data['total_beneficiaries'] = Beneficiary::whereHas('phase', function($q) use ($districtId) {
@@ -200,6 +200,108 @@ class DashboardController extends Controller
             ->groupBy('month')
             ->orderBy('month')
             ->get();
+        } elseif ($user->isInstitutionUser() && $user->institution) {
+            // Institution user statistics - restricted to this institution's beneficiaries and relevant schemes
+            $institution = $user->institution;
+            $institutionId = $institution->id;
+            $districtId = $institution->district_id;
+
+            // Map institution.type to scheme.institutional_type
+            $institutionType = $institution->type; // middle_school, high_school, college, university, madarsa, hospital
+            $institutionalTypeForScheme = null;
+            if (in_array($institutionType, ['middle_school', 'high_school', 'college', 'university'])) {
+                $institutionalTypeForScheme = 'educational';
+            } elseif ($institutionType === 'madarsa') {
+                $institutionalTypeForScheme = 'madarsa';
+            } elseif ($institutionType === 'hospital') {
+                $institutionalTypeForScheme = 'health';
+            }
+
+            // Base beneficiary query for this institution
+            $beneficiaryBase = Beneficiary::where('institution_id', $institutionId);
+
+            $data['total_beneficiaries'] = (clone $beneficiaryBase)->count();
+            $data['pending_beneficiaries'] = (clone $beneficiaryBase)->where('status', 'pending')->count();
+            $data['submitted_beneficiaries'] = (clone $beneficiaryBase)->where('status', 'submitted')->count();
+            $data['approved_beneficiaries'] = (clone $beneficiaryBase)->where('status', 'approved')->count();
+            $data['rejected_beneficiaries'] = (clone $beneficiaryBase)->where('status', 'rejected')->count();
+            $data['paid_beneficiaries'] = (clone $beneficiaryBase)->where('status', 'paid')->count();
+
+            $data['disbursed_funds'] = (clone $beneficiaryBase)
+                ->whereIn('status', ['approved', 'paid'])
+                ->sum('amount');
+
+            // Status distribution for charts (institution-level)
+            $data['status_distribution'] = (clone $beneficiaryBase)
+                ->select('status', DB::raw('count(*) as count'))
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->toArray();
+
+            // Scheme-wise statistics for this institution (only institutional schemes of correct type)
+            $data['scheme_stats'] = Scheme::where('is_institutional', true)
+                ->when($institutionalTypeForScheme, function ($q) use ($institutionalTypeForScheme) {
+                    $q->where('institutional_type', $institutionalTypeForScheme);
+                })
+                ->withCount(['beneficiaries' => function($query) use ($institutionId) {
+                    $query->where('institution_id', $institutionId)
+                          ->whereIn('beneficiaries.status', ['submitted', 'approved', 'paid']);
+                }])
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get();
+
+            // Recent beneficiaries for this institution
+            $data['recent_beneficiaries'] = Beneficiary::with(['scheme', 'phase.district', 'institution'])
+                ->where('institution_id', $institutionId)
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+            // Active phases for this institution: in its district and matching institutional type
+            $data['active_phases_list'] = Phase::with(['district', 'scheme', 'installment.fundAllocation.financialYear'])
+                ->where('district_id', $districtId)
+                ->where('status', 'open')
+                ->whereHas('scheme', function ($q) use ($institutionalTypeForScheme) {
+                    $q->where('is_institutional', true);
+                    if ($institutionalTypeForScheme) {
+                        $q->where('institutional_type', $institutionalTypeForScheme);
+                    }
+                })
+                ->orderBy('start_date', 'desc')
+                ->limit(10)
+                ->get();
+
+            // Monthly trends for this institution (last 12 months)
+            $data['monthly_trends'] = Beneficiary::where('institution_id', $institutionId)
+                ->select(
+                    DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+                    DB::raw('count(*) as count'),
+                    DB::raw('sum(amount) as total_amount')
+                )
+                ->where('created_at', '>=', Carbon::now()->subMonths(12))
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get();
+        } else {
+            // Fallback: no specific district or institution, show minimal stats
+            $data['total_beneficiaries'] = Beneficiary::count();
+            $data['submitted_beneficiaries'] = Beneficiary::where('status', 'submitted')->count();
+            $data['approved_beneficiaries'] = Beneficiary::where('status', 'approved')->count();
+            $data['paid_beneficiaries'] = Beneficiary::where('status', 'paid')->count();
+            $data['recent_beneficiaries'] = Beneficiary::with(['scheme', 'phase.district'])
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+            $data['monthly_trends'] = Beneficiary::select(
+                    DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month'),
+                    DB::raw('count(*) as count'),
+                    DB::raw('sum(amount) as total_amount')
+                )
+                ->where('created_at', '>=', Carbon::now()->subMonths(12))
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get();
         }
 
         return view('dashboard.index', compact('data'));
